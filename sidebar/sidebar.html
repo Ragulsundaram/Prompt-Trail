@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Version History</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .sidebar-container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .sidebar-header {
+      background: #fff;
+      padding: 20px;
+      border-bottom: 1px solid #e5e5e5;
+      flex-shrink: 0;
+    }
+    
+    .sidebar-header h1 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+    
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    
+    .platform-indicator {
+      display: inline-block;
+      background: #007bff;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    
+    .version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .version-item {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: all 0.2s;
+    }
+    
+    .version-item:hover {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .version-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .version-type {
+      font-size: 16px;
+    }
+    
+    .version-time {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .version-preview {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 12px;
+      border-left: 3px solid #007bff;
+    }
+    
+    .checkpoint {
+      border-left-color: #28a745;
+    }
+    
+    .version-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid;
+      background: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-restore {
+      border-color: #28a745;
+      color: #28a745;
+    }
+    
+    .btn-restore:hover {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-branch {
+      border-color: #ffc107;
+      color: #e67e22;
+    }
+    
+    .btn-branch:hover {
+      background: #ffc107;
+      color: #000;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 40px 20px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-container">
+    <div class="sidebar-header">
+      <h1>📝 Prompt Versions</h1>
+      <div id="platform-info"></div>
+    </div>
+    
+    <div class="sidebar-content">
+      <div id="version-container">
+        <div class="loading">Loading version history...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidebar.js"></script>
+</body>
+</html>

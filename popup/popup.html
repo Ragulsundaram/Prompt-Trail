@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Version Tracking</title>
+  <style>
+    body {
+      width: 380px;
+      min-height: 500px;
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      margin: 0;
+      color: #333;
+      font-size: 18px;
+    }
+    
+    .status {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+    }
+    
+    .platform-status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .active { background: #28a745; }
+    .inactive { background: #dc3545; }
+    
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .btn {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    
+    .stats {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .stat-value {
+      font-weight: 600;
+      color: #007bff;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📝 Prompt Versions</h1>
+  </div>
+  
+  <div class="status">
+    <div class="platform-status">
+      <span class="status-indicator" id="chatgpt-status"></span>
+      <span>ChatGPT</span>
+    </div>
+    <div class="platform-status">
+      <span class="status-indicator inactive" id="gemini-status"></span>
+      <span>Gemini (Coming Soon)</span>
+    </div>
+    <div class="platform-status">
+      <span class="status-indicator inactive" id="claude-status"></span>
+      <span>Claude (Coming Soon)</span>
+    </div>
+  </div>
+  
+  <div class="actions">
+    <button class="btn btn-primary" id="toggle-sidebar">Toggle Sidebar</button>
+    <button class="btn btn-secondary" id="create-checkpoint">Create Checkpoint</button>
+    <button class="btn btn-secondary" id="export-data">Export Data</button>
+    <button class="btn btn-secondary" id="view-stats">View Statistics</button>
+  </div>
+  
+  <div class="stats" id="stats-section" style="display: none;">
+    <h3 style="margin-top: 0;">Statistics</h3>
+    <div class="stat-item">
+      <span>Total Versions:</span>
+      <span class="stat-value" id="total-versions">0</span>
+    </div>
+    <div class="stat-item">
+      <span>Checkpoints:</span>
+      <span class="stat-value" id="total-checkpoints">0</span>
+    </div>
+    <div class="stat-item">
+      <span>Current Session:</span>
+      <span class="stat-value" id="session-versions">0</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
