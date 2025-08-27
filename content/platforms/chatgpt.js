@@ -56,15 +56,17 @@ class ChatGPTAdapter {
 
   async findUIElements() {
     try {
-      // ChatGPT text input area (multiple possible selectors due to UI changes)
+      // ChatGPT text input area (updated selectors for current interface)
       const textAreaSelectors = [
         'textarea[data-id="root"]',
+        'textarea[placeholder*="Message ChatGPT"]',
         'textarea[placeholder*="message"]',
         'textarea[placeholder*="ChatGPT"]',
         'textarea[placeholder*="Message"]',
         '#prompt-textarea',
+        'div[contenteditable="true"]', // New ChatGPT uses contenteditable
         'textarea',
-        '[contenteditable="true"]' // New ChatGPT might use contenteditable
+        'div[role="textbox"]'
       ];
 
       for (const selector of textAreaSelectors) {
@@ -123,18 +125,25 @@ class ChatGPTAdapter {
     if (!this.textArea) return;
 
     // Text change detection with debouncing
-    const debouncedTextChange = PromptUtils.debounce((text) => {
-      this.handleTextChange(text);
+    const debouncedTextChange = PromptUtils.debounce(() => {
+      const currentText = this.getCurrentText();
+      this.handleTextChange(currentText);
     }, 1000);
 
-    this.textArea.addEventListener('input', (e) => {
-      debouncedTextChange(e.target.value);
+    // Handle both input and contenteditable changes
+    this.textArea.addEventListener('input', () => {
+      debouncedTextChange();
     });
 
-    this.textArea.addEventListener('paste', (e) => {
+    this.textArea.addEventListener('paste', () => {
       setTimeout(() => {
-        debouncedTextChange(e.target.value);
+        debouncedTextChange();
       }, 100);
+    });
+
+    // For contenteditable elements
+    this.textArea.addEventListener('DOMCharacterDataModified', () => {
+      debouncedTextChange();
     });
 
     // Submit detection
@@ -347,7 +356,7 @@ class ChatGPTAdapter {
   }
 
   async handleTextChange(text) {
-    if (!this.versionManager || !text.trim()) return;
+    if (!this.versionManager || !text || !text.trim()) return;
 
     try {
       // Enhanced tracking for different prompting patterns
@@ -369,6 +378,24 @@ class ChatGPTAdapter {
     } catch (error) {
       PromptUtils.log('error', 'Failed to save prompt version on text change:', error);
     }
+  }
+
+  getCurrentText() {
+    if (!this.textArea) return '';
+    
+    // Handle different types of input elements
+    if (this.textArea.value !== undefined) {
+      // Standard textarea or input
+      return this.textArea.value;
+    } else if (this.textArea.textContent !== undefined) {
+      // Contenteditable div
+      return this.textArea.textContent;
+    } else if (this.textArea.innerText !== undefined) {
+      // Fallback to innerText
+      return this.textArea.innerText;
+    }
+    
+    return '';
   }
 
   detectChangePattern(oldText, newText) {
@@ -409,8 +436,8 @@ class ChatGPTAdapter {
   async handleSubmit() {
     if (!this.versionManager || !this.textArea) return;
 
-    const currentText = this.textArea.value.trim();
-    if (!currentText) return;
+    const currentText = this.getCurrentText();
+    if (!currentText || !currentText.trim()) return;
 
     try {
       // Save as checkpoint when submitted
@@ -516,6 +543,80 @@ class ChatGPTAdapter {
   isReady() {
     return this.isInitialized && this.textArea && this.versionManager;
   }
+
+  addDebugPanel() {
+    // Add a debug panel at the top of the page for testing
+    const debugPanel = document.createElement('div');
+    debugPanel.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+    `;
+    
+    debugPanel.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <span style="font-weight: 600;">🛤️ PromptTrail Debug Mode</span>
+        <span style="opacity: 0.8;">Platform: ChatGPT | Status: Active</span>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button id="debugToggleSidebar" style="
+          background: rgba(255,255,255,0.2);
+          border: 1px solid rgba(255,255,255,0.3);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s;
+        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+          🔄 Toggle Sidebar
+        </button>
+        <button id="debugCreateSidebar" style="
+          background: rgba(255,255,255,0.2);
+          border: 1px solid rgba(255,255,255,0.3);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s;
+        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+          ➕ Force Create
+        </button>
+      </div>
+    `;
+    
+    document.body.appendChild(debugPanel);
+    
+    // Add click handlers for debug buttons
+    document.getElementById('debugToggleSidebar').addEventListener('click', () => {
+      console.log('🔧 Debug toggle clicked!');
+      if (this.sidebar) {
+        this.sidebar.toggle();
+      }
+    });
+    
+    document.getElementById('debugCreateSidebar').addEventListener('click', () => {
+      console.log('🔧 Debug force create clicked!');
+      if (this.sidebar) {
+        this.sidebar.createSidebar();
+      }
+    });
+    
+    console.log('🔧 PromptTrail debug panel added with interactive controls');
+  }
 }
 
 // Simple sidebar implementation for version history
@@ -605,76 +706,6 @@ class PromptVersionSidebar {
     });
 
     console.log('🎧 Sidebar event listeners set up');
-  }
-
-  addDebugPanel() {
-    // Add a debug panel at the top of the page for testing
-    const debugPanel = document.createElement('div');
-    debugPanel.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 12px 20px;
-      z-index: 10000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-    `;
-    
-    debugPanel.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <span style="font-weight: 600;">�️ PromptTrail Debug Mode</span>
-        <span style="opacity: 0.8;">Platform: ChatGPT | Status: Active</span>
-      </div>
-      <div style="display: flex; gap: 10px;">
-        <button id="debugToggleSidebar" style="
-          background: rgba(255,255,255,0.2);
-          border: 1px solid rgba(255,255,255,0.3);
-          color: white;
-          padding: 6px 12px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 12px;
-          transition: all 0.2s;
-        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-          🔄 Toggle Sidebar
-        </button>
-        <button id="debugCreateSidebar" style="
-          background: rgba(255,255,255,0.2);
-          border: 1px solid rgba(255,255,255,0.3);
-          color: white;
-          padding: 6px 12px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 12px;
-          transition: all 0.2s;
-        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-          ➕ Force Create
-        </button>
-      </div>
-    `;
-    
-    document.body.appendChild(debugPanel);
-    
-    // Add click handlers for debug buttons
-    document.getElementById('debugToggleSidebar').addEventListener('click', () => {
-      console.log('🔧 Debug toggle clicked!');
-      this.toggleSidebar();
-    });
-    
-    document.getElementById('debugCreateSidebar').addEventListener('click', () => {
-      console.log('🔧 Debug force create clicked!');
-      this.createSidebar();
-    });
-    
-    console.log('🔧 PromptTrail debug panel added with interactive controls');
   }
 
   async refreshVersionList() {
