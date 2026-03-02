@@ -6,6 +6,8 @@ class PromptTimeline {
     this.sidebar = null;
     this.observer = null;
     this.isVisible = true;
+    this.bookmarks = new Set(); // Track bookmarked prompt IDs
+    this.showOnlyBookmarks = false; // Filter toggle
     
     this.init();
   }
@@ -81,6 +83,11 @@ class PromptTimeline {
           <span class="pts-count" id="pts-count">0</span>
         </div>
         <div class="pts-header-actions">
+          <button class="pts-filter-bookmarks" title="Show bookmarked only">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
           <button class="pts-rescan" title="Rescan prompts">↻</button>
           <button class="pts-close" title="Collapse sidebar">»</button>
         </div>
@@ -122,6 +129,11 @@ class PromptTimeline {
     this.sidebar.querySelector('.pts-rescan').addEventListener('click', (e) => {
       e.stopPropagation();
       this.rescan();
+    });
+    
+    this.sidebar.querySelector('.pts-filter-bookmarks').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleBookmarkFilter();
     });
     
     // Click on collapsed sidebar to expand
@@ -256,7 +268,7 @@ class PromptTimeline {
         gap: 4px;
       }
       
-      .pts-close, .pts-rescan {
+      .pts-close, .pts-rescan, .pts-filter-bookmarks {
         background: none;
         border: none;
         color: #8b949e;
@@ -265,11 +277,28 @@ class PromptTimeline {
         padding: 6px 8px;
         border-radius: 6px;
         transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
-      .pts-close:hover, .pts-rescan:hover {
+      .pts-filter-bookmarks svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .pts-close:hover, .pts-rescan:hover, .pts-filter-bookmarks:hover {
         color: #c9d1d9;
         background: #21262d;
+      }
+      
+      .pts-filter-bookmarks.pts-filter-active {
+        color: #f0b429;
+        background: rgba(240, 180, 41, 0.15);
+      }
+      
+      .pts-filter-bookmarks.pts-filter-active svg {
+        fill: #f0b429;
       }
 
       .pts-content {
@@ -418,6 +447,98 @@ class PromptTimeline {
 
       .pts-highlight-flash {
         animation: pts-highlight 0.6s ease-in-out 3;
+      }
+
+      /* Prompt header with number and actions */
+      .pts-prompt-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      /* Action buttons container */
+      .pts-prompt-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .pts-prompt-item:hover .pts-prompt-actions {
+        opacity: 1;
+      }
+
+      /* Action button base */
+      .pts-btn {
+        background: transparent;
+        border: none;
+        width: 28px;
+        height: 28px;
+        padding: 5px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #8b949e;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pts-btn:hover {
+        background: #21262d;
+        color: #c9d1d9;
+      }
+
+      .pts-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Bookmark button */
+      .pts-bookmark.pts-bookmarked {
+        color: #f0b429;
+      }
+
+      .pts-bookmark.pts-bookmarked svg {
+        fill: #f0b429;
+      }
+
+      /* Copy button feedback */
+      .pts-copy.pts-copied {
+        color: #3fb950;
+        background: rgba(63, 185, 80, 0.15);
+      }
+
+      /* Toast notification */
+      .pts-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: #161b22;
+        color: #c9d1d9;
+        padding: 12px 24px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        font-size: 13px;
+        z-index: 10001;
+        opacity: 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      }
+
+      .pts-toast-show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* Bookmarked indicator on timeline node */
+      .pts-prompt-item.pts-is-bookmarked::before {
+        border-color: #f0b429;
+        background: #f0b429;
+        box-shadow: 0 0 8px rgba(240, 180, 41, 0.5);
       }
     `;
 
@@ -634,30 +755,186 @@ class PromptTimeline {
     const countEl = document.getElementById('pts-count');
     if (!container) return;
 
-    // Update count badge
+    // Filter prompts if bookmark filter is active
+    const displayPrompts = this.showOnlyBookmarks 
+      ? this.prompts.filter(p => this.bookmarks.has(p.id))
+      : this.prompts;
+
+    // Update count badge (show filtered/total when filtering)
     if (countEl) {
-      countEl.textContent = this.prompts.length;
+      if (this.showOnlyBookmarks && this.bookmarks.size > 0) {
+        countEl.textContent = `${displayPrompts.length}/${this.prompts.length}`;
+      } else {
+        countEl.textContent = this.prompts.length;
+      }
     }
 
-    if (this.prompts.length === 0) {
-      container.innerHTML = '<div class="pts-empty">No prompts yet.<br><small style="color:#6e7681">Start a conversation!</small></div>';
+    if (displayPrompts.length === 0) {
+      if (this.showOnlyBookmarks) {
+        container.innerHTML = '<div class="pts-empty">No bookmarks yet.<br><small style="color:#6e7681">Click the bookmark icon on a prompt to save it.</small></div>';
+      } else {
+        container.innerHTML = '<div class="pts-empty">No prompts yet.<br><small style="color:#6e7681">Start a conversation!</small></div>';
+      }
       return;
     }
 
-    container.innerHTML = this.prompts.map((prompt, idx) => `
-      <div class="pts-prompt-item" data-prompt-id="${prompt.id}">
-        <div class="pts-prompt-num"><span>${idx + 1}</span></div>
+    container.innerHTML = displayPrompts.map((prompt, idx) => `
+      <div class="pts-prompt-item ${this.bookmarks.has(prompt.id) ? 'pts-is-bookmarked' : ''}" data-prompt-id="${prompt.id}">
+        <div class="pts-prompt-header">
+          <div class="pts-prompt-num"><span>${idx + 1}</span></div>
+          <div class="pts-prompt-actions">
+            <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+            </button>
+            <button class="pts-btn pts-copy" data-action="copy" title="Copy to input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+          </div>
+        </div>
         <div class="pts-prompt-text">${this.escapeHtml(prompt.text)}</div>
       </div>
     `).join('');
 
     // Add click handlers
     container.querySelectorAll('.pts-prompt-item').forEach((item) => {
-      item.addEventListener('click', () => {
-        const promptId = item.dataset.promptId;
-        this.scrollToPrompt(promptId);
+      const promptId = item.dataset.promptId;
+      
+      // Click on item (but not buttons) scrolls to prompt
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.pts-btn')) {
+          this.scrollToPrompt(promptId);
+        }
+      });
+      
+      // Bookmark button
+      item.querySelector('.pts-bookmark').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleBookmark(promptId);
+      });
+      
+      // Copy button
+      item.querySelector('.pts-copy').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.copyToInput(promptId);
       });
     });
+  }
+  
+  toggleBookmark(promptId) {
+    if (this.bookmarks.has(promptId)) {
+      this.bookmarks.delete(promptId);
+      console.log('🛤️ PromptTrail: Removed bookmark', promptId);
+    } else {
+      this.bookmarks.add(promptId);
+      console.log('🛤️ PromptTrail: Added bookmark', promptId);
+    }
+    
+    // Update UI
+    const item = document.querySelector(`[data-prompt-id="${promptId}"]`);
+    if (item) {
+      const btn = item.querySelector('.pts-bookmark');
+      const isBookmarked = this.bookmarks.has(promptId);
+      btn.classList.toggle('pts-bookmarked', isBookmarked);
+      item.classList.toggle('pts-is-bookmarked', isBookmarked);
+    }
+  }
+  
+  copyToInput(promptId) {
+    const prompt = this.prompts.find(p => p.id === promptId);
+    if (!prompt) return;
+    
+    // Find ChatGPT's input textarea
+    const inputSelectors = [
+      '#prompt-textarea',
+      'textarea[data-id="root"]',
+      'div[contenteditable="true"][data-placeholder]',
+      'textarea[placeholder*="Message"]',
+      'div#prompt-textarea'
+    ];
+    
+    let input = null;
+    for (const selector of inputSelectors) {
+      input = document.querySelector(selector);
+      if (input) break;
+    }
+    
+    if (!input) {
+      console.warn('🛤️ PromptTrail: Could not find ChatGPT input');
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(prompt.text).then(() => {
+        this.showToast('Copied to clipboard!');
+      });
+      return;
+    }
+    
+    // Handle contenteditable div or textarea
+    if (input.tagName === 'TEXTAREA') {
+      input.value = prompt.text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // Contenteditable div
+      input.innerHTML = '';
+      input.textContent = prompt.text;
+      
+      // Trigger input event for React
+      input.dispatchEvent(new InputEvent('input', { 
+        bubbles: true, 
+        cancelable: true,
+        inputType: 'insertText',
+        data: prompt.text
+      }));
+    }
+    
+    // Focus the input
+    input.focus();
+    
+    // Show visual feedback
+    this.showCopyFeedback(promptId);
+    console.log('🛤️ PromptTrail: Copied prompt to input', promptId);
+  }
+  
+  showCopyFeedback(promptId) {
+    const item = document.querySelector(`[data-prompt-id="${promptId}"]`);
+    if (item) {
+      const btn = item.querySelector('.pts-copy');
+      btn.classList.add('pts-copied');
+      setTimeout(() => btn.classList.remove('pts-copied'), 1500);
+    }
+  }
+  
+  showToast(message) {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'pts-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.classList.add('pts-toast-show');
+    }, 10);
+    
+    setTimeout(() => {
+      toast.classList.remove('pts-toast-show');
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
+  }
+  
+  toggleBookmarkFilter() {
+    this.showOnlyBookmarks = !this.showOnlyBookmarks;
+    
+    // Update button state
+    const btn = this.sidebar.querySelector('.pts-filter-bookmarks');
+    btn.classList.toggle('pts-filter-active', this.showOnlyBookmarks);
+    
+    // Re-render with filter
+    this.renderPromptList();
+    
+    console.log('🛤️ PromptTrail: Bookmark filter', this.showOnlyBookmarks ? 'ON' : 'OFF');
   }
 
   scrollToPrompt(promptId) {
