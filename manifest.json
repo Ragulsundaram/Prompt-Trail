@@ -1,70 +1,33 @@
 {
   "manifest_version": 3,
-  "name": "PromptTrail",
+  "name": "Prompt Trail",
   "version": "1.0.0",
-  "description": "Track and manage prompt versions across ChatGPT, Gemini, and Claude interfaces",
+  "description": "Track your prompt timeline on ChatGPT - click to scroll to any prompt",
   
   "permissions": [
-    "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   
   "host_permissions": [
     "https://chat.openai.com/*",
-    "https://chatgpt.com/*",
-    "https://bard.google.com/*",
-    "https://claude.ai/*"
+    "https://chatgpt.com/*"
   ],
   
   "background": {
-    "service_worker": "background/background.js",
-    "type": "module"
+    "service_worker": "background/background.js"
   },
   
   "content_scripts": [
     {
       "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*"],
-      "js": [
-        "content/shared/utils.js",
-        "content/shared/storage.js",
-        "content/shared/version-manager.js",
-        "content/platforms/chatgpt.js"
-      ],
-      "css": ["content/styles/sidebar.css"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://bard.google.com/*"],
-      "js": [
-        "content/shared/utils.js",
-        "content/shared/storage.js",
-        "content/shared/version-manager.js",
-        "content/platforms/gemini.js"
-      ],
-      "css": ["content/styles/sidebar.css"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://claude.ai/*"],
-      "js": [
-        "content/shared/utils.js",
-        "content/shared/storage.js",
-        "content/shared/version-manager.js",
-        "content/platforms/claude.js"
-      ],
-      "css": ["content/styles/sidebar.css"],
+      "js": ["content/platforms/chatgpt.js"],
       "run_at": "document_idle"
     }
   ],
   
-  "side_panel": {
-    "default_path": "sidebar/sidebar.html"
-  },
-  
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Prompt Version Tracking"
+    "default_title": "Prompt Trail"
   },
   
   "icons": {
@@ -72,12 +35,5 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  },
-  
-  "web_accessible_resources": [
-    {
-      "resources": ["content/styles/*", "content/templates/*"],
-      "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*", "https://bard.google.com/*", "https://claude.ai/*"]
-    }
-  ]
+  }
 }

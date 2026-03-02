@@ -1,901 +1,702 @@
-// ChatGPT platform adapter for Prompt Version Tracking
+// ChatGPT Prompt Timeline - Simple sidebar that shows prompts and scrolls to them
 
-class ChatGPTAdapter {
+class PromptTimeline {
   constructor() {
-    this.versionManager = null;
-    this.textArea = null;
-    this.submitButton = null;
-    this.conversationContainer = null;
-    this.lastSubmittedPrompt = '';
-    this.isInitialized = false;
+    this.prompts = [];
+    this.sidebar = null;
+    this.observer = null;
+    this.isVisible = true;
     
     this.init();
   }
 
   async init() {
-    try {
-      PromptUtils.log('info', 'Initializing ChatGPT adapter');
-      
-      // Wait for page to load
-      await this.waitForPageLoad();
-      
-      // Initialize version manager
-      this.versionManager = new PromptVersionManager('chatgpt');
-      
-      // Find UI elements
-      await this.findUIElements();
-      
-      // Set up event listeners
-      this.setupEventListeners();
-      
-      // Initialize sidebar
-      this.initializeSidebar();
-      
-      // Add debug panel for testing
-      this.addDebugPanel();
-      
-      this.isInitialized = true;
-      PromptUtils.log('info', 'ChatGPT adapter initialized successfully');
-      
-      // Test message to confirm initialization
-      console.log('�️ PromptTrail Ready for ChatGPT!', {
-        textArea: !!this.textArea,
-        submitButton: !!this.submitButton,
-        versionManager: !!this.versionManager
-      });
-      
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to initialize ChatGPT adapter:', error);
-    }
-  }
-
-  async waitForPageLoad() {
-    // Wait for the main chat interface to load
-    return PromptUtils.waitForElement('main', 10000);
-  }
-
-  async findUIElements() {
-    try {
-      // ChatGPT text input area (updated selectors for current interface)
-      const textAreaSelectors = [
-        'textarea[data-id="root"]',
-        'textarea[placeholder*="Message ChatGPT"]',
-        'textarea[placeholder*="message"]',
-        'textarea[placeholder*="ChatGPT"]',
-        'textarea[placeholder*="Message"]',
-        '#prompt-textarea',
-        'div[contenteditable="true"]', // New ChatGPT uses contenteditable
-        'textarea',
-        'div[role="textbox"]'
-      ];
-
-      for (const selector of textAreaSelectors) {
-        this.textArea = document.querySelector(selector);
-        if (this.textArea) {
-          PromptUtils.log('info', 'Found text area with selector:', selector);
-          break;
-        }
-      }
-
-      if (!this.textArea) {
-        throw new Error('Could not find ChatGPT text input area');
-      }
-
-      // Submit button
-      const submitSelectors = [
-        'button[data-testid="send-button"]',
-        'button[aria-label*="Send"]',
-        'button[aria-label*="submit"]',
-        'button[type="submit"]',
-        'button:has(svg)',
-        '[data-testid="fruitjuice-send-button"]' // New ChatGPT send button
-      ];
-
-      for (const selector of submitSelectors) {
-        this.submitButton = document.querySelector(selector);
-        if (this.submitButton) {
-          PromptUtils.log('info', 'Found submit button with selector:', selector);
-          break;
-        }
-      }
-
-      // Conversation container
-      const containerSelectors = [
-        '[role="main"]',
-        '.conversation',
-        '[data-testid="conversation"]',
-        'main'
-      ];
-
-      for (const selector of containerSelectors) {
-        this.conversationContainer = document.querySelector(selector);
-        if (this.conversationContainer) {
-          PromptUtils.log('info', 'Found conversation container with selector:', selector);
-          break;
-        }
-      }
-
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to find UI elements:', error);
-      throw error;
-    }
-  }
-
-  setupEventListeners() {
-    if (!this.textArea) return;
-
-    // Text change detection with debouncing
-    const debouncedTextChange = PromptUtils.debounce(() => {
-      const currentText = this.getCurrentText();
-      this.handleTextChange(currentText);
-    }, 1000);
-
-    // Handle both input and contenteditable changes
-    this.textArea.addEventListener('input', () => {
-      debouncedTextChange();
-    });
-
-    this.textArea.addEventListener('paste', () => {
-      setTimeout(() => {
-        debouncedTextChange();
-      }, 100);
-    });
-
-    // For contenteditable elements
-    this.textArea.addEventListener('DOMCharacterDataModified', () => {
-      debouncedTextChange();
-    });
-
-    // Submit detection
-    if (this.submitButton) {
-      this.submitButton.addEventListener('click', () => {
-        this.handleSubmit();
-      });
-    }
-
-    // Enter key detection
-    this.textArea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        setTimeout(() => {
-          this.handleSubmit();
-        }, 100);
-      }
-    });
-
-    // Manual checkpoint hotkey (Ctrl+S)
-    this.textArea.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault();
-        this.createQuickCheckpoint();
-      }
-    });
-
-    // Response detection using mutation observer
-    this.setupResponseDetection();
-
-    // Version restore listener
-    window.addEventListener('promptVersionRestore', (e) => {
-      this.restorePromptToTextArea(e.detail.version.prompt);
-    });
-
-    // Message listener for popup commands
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMessage(message, sender, sendResponse);
-      return true; // Keep message channel open
-    });
-
-    PromptUtils.log('info', 'Event listeners set up for ChatGPT');
-  }
-
-  handleMessage(message, sender, sendResponse) {
-    switch (message.type) {
-      case 'TOGGLE_SIDEBAR':
-        this.toggleSidebar();
-        sendResponse({ success: true });
-        break;
-        
-      case 'CREATE_CHECKPOINT':
-        this.createManualCheckpoint()
-          .then(success => sendResponse({ success }))
-          .catch(error => sendResponse({ success: false, error: error.message }));
-        break;
-        
-      case 'RESTORE_VERSION':
-        this.restorePromptToTextArea(message.data.prompt);
-        sendResponse({ success: true });
-        break;
-        
-      case 'CREATE_BRANCH':
-        this.createBranchFromPrompt(message.data.prompt, message.data.versionId)
-          .then(success => sendResponse({ success }))
-          .catch(error => sendResponse({ success: false, error: error.message }));
-        break;
-        
-      default:
-        sendResponse({ success: false, error: 'Unknown message type' });
-    }
-  }
-
-  toggleSidebar() {
-    console.log('🔄 Toggle sidebar called');
+    console.log('🛤️ PromptTrail: Initializing...');
     
-    const sidebar = document.getElementById('prompt-version-sidebar');
-    if (sidebar) {
-      const isVisible = sidebar.style.display !== 'none';
-      sidebar.style.display = isVisible ? 'none' : 'block';
-      
-      console.log('📱 Sidebar toggled:', isVisible ? 'hidden' : 'shown');
-      
-      if (!isVisible) {
-        // Refresh version list when showing
-        const sidebarInstance = window.promptVersionSidebar;
-        if (sidebarInstance) {
-          sidebarInstance.refreshVersionList();
-        }
-      }
-    } else {
-      console.error('❌ Sidebar element not found!');
-      // Try to create sidebar if it doesn't exist
-      this.initializeSidebar();
-    }
-  }
-
-  async createBranchFromPrompt(prompt, versionId) {
-    try {
-      // Restore the prompt first
-      this.restorePromptToTextArea(prompt);
-      
-      // Create a branch in the version manager
-      await this.versionManager.createBranch(versionId, prompt);
-      
-      this.showNotification('🌿 Branch created! Start editing.');
-      return true;
-    } catch (error) {
-      this.showNotification('✗ Failed to create branch');
-      throw error;
-    }
-  }
-
-  async createQuickCheckpoint() {
-    if (!this.textArea) return;
+    // Wait for the page to load
+    await this.waitForConversation();
     
-    const currentText = this.textArea.value.trim();
-    if (!currentText) return;
-
-    const checkpointName = prompt('Name this checkpoint (optional):') || 
-                          `Quick Save ${new Date().toLocaleTimeString()}`;
-    
-    try {
-      await this.versionManager.createCheckpoint(
-        currentText,
-        null,
-        checkpointName,
-        'User-created checkpoint via Ctrl+S'
-      );
-      
-      this.showNotification('✓ Checkpoint saved!');
-      PromptUtils.log('info', 'Quick checkpoint created:', checkpointName);
-    } catch (error) {
-      this.showNotification('✗ Failed to save checkpoint');
-      PromptUtils.log('error', 'Failed to create quick checkpoint:', error);
-    }
-  }
-
-  showNotification(message) {
-    // Create a temporary notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #28a745;
-      color: white;
-      padding: 12px 16px;
-      border-radius: 6px;
-      box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
-      z-index: 10001;
-      font-family: system-ui;
-      font-size: 14px;
-      animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
-    `;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-      if (document.body.contains(notification)) {
-        document.body.removeChild(notification);
-      }
-    }, 3000);
-  }
-
-  setupResponseDetection() {
-    if (!this.conversationContainer) return;
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              this.checkForNewResponse(node);
-            }
-          });
-        }
-      });
-    });
-
-    observer.observe(this.conversationContainer, {
-      childList: true,
-      subtree: true
-    });
-
-    PromptUtils.log('info', 'Response detection set up');
-  }
-
-  checkForNewResponse(element) {
-    // Look for ChatGPT response indicators
-    const responseIndicators = [
-      '[data-message-author-role="assistant"]',
-      '.markdown',
-      '[class*="response"]',
-      '[class*="assistant"]'
-    ];
-
-    for (const selector of responseIndicators) {
-      const responseElement = element.querySelector ? 
-        element.querySelector(selector) : 
-        (element.matches && element.matches(selector) ? element : null);
-
-      if (responseElement) {
-        setTimeout(() => {
-          this.handleNewResponse(responseElement);
-        }, 1000); // Wait for response to fully load
-        break;
-      }
-    }
-  }
-
-  async handleTextChange(text) {
-    if (!this.versionManager || !text || !text.trim()) return;
-
-    try {
-      // Enhanced tracking for different prompting patterns
-      const previousText = this.versionManager.lastPrompt || '';
-      
-      // Pattern detection
-      const changeType = this.detectChangePattern(previousText, text);
-      
-      // Only save significant changes to avoid spam
-      if (changeType !== 'minor_edit') {
-        await this.versionManager.savePromptVersion(text, null, false, changeType);
-        
-        // Log the detected pattern for debugging
-        PromptUtils.log('info', `Change detected: ${changeType}`, {
-          similarity: PromptUtils.calculateSimilarity(previousText, text),
-          lengthDiff: text.length - previousText.length
-        });
-      }
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to save prompt version on text change:', error);
-    }
-  }
-
-  getCurrentText() {
-    if (!this.textArea) return '';
-    
-    // Handle different types of input elements
-    if (this.textArea.value !== undefined) {
-      // Standard textarea or input
-      return this.textArea.value;
-    } else if (this.textArea.textContent !== undefined) {
-      // Contenteditable div
-      return this.textArea.textContent;
-    } else if (this.textArea.innerText !== undefined) {
-      // Fallback to innerText
-      return this.textArea.innerText;
-    }
-    
-    return '';
-  }
-
-  detectChangePattern(oldText, newText) {
-    if (!oldText) return 'new_prompt';
-    
-    const similarity = PromptUtils.calculateSimilarity(oldText, newText);
-    const lengthDiff = Math.abs(newText.length - oldText.length);
-    const lengthRatio = newText.length / oldText.length;
-    
-    // Pattern: Copy-paste with edits
-    if (similarity > 0.8 && lengthDiff > 20) {
-      return 'copy_paste_edit';
-    }
-    
-    // Pattern: Major rewrite/new prompt
-    if (similarity < 0.3) {
-      return 'major_rewrite';
-    }
-    
-    // Pattern: Adding detail (significant length increase)
-    if (similarity > 0.7 && lengthRatio > 1.3) {
-      return 'detail_addition';
-    }
-    
-    // Pattern: Refinement (moderate changes)
-    if (similarity > 0.6 && similarity < 0.8) {
-      return 'refinement';
-    }
-    
-    // Pattern: Minor edit (don't save)
-    if (similarity > 0.9 && lengthDiff < 10) {
-      return 'minor_edit';
-    }
-    
-    return 'general_edit';
-  }
-
-  async handleSubmit() {
-    if (!this.versionManager || !this.textArea) return;
-
-    const currentText = this.getCurrentText();
-    if (!currentText || !currentText.trim()) return;
-
-    try {
-      // Save as checkpoint when submitted
-      this.lastSubmittedPrompt = currentText;
-      await this.versionManager.createCheckpoint(
-        currentText,
-        null,
-        'Submitted Prompt',
-        'User submitted this prompt'
-      );
-
-      PromptUtils.log('info', 'Prompt submitted and saved as checkpoint');
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to save submitted prompt:', error);
-    }
-  }
-
-  async handleNewResponse(responseElement) {
-    if (!this.versionManager || !this.lastSubmittedPrompt) return;
-
-    try {
-      const responseText = this.extractResponseText(responseElement);
-      if (responseText) {
-        // Update the last submitted prompt with the response
-        await this.versionManager.savePromptVersion(
-          this.lastSubmittedPrompt,
-          responseText,
-          true
-        );
-
-        PromptUtils.log('info', 'Response captured and associated with prompt');
-      }
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to capture response:', error);
-    }
-  }
-
-  extractResponseText(element) {
-    // Try to extract clean text from response element
-    const textContent = element.textContent || element.innerText || '';
-    return PromptUtils.normalizePrompt(textContent);
-  }
-
-  restorePromptToTextArea(prompt) {
-    if (!this.textArea) return;
-
-    // Set the value
-    this.textArea.value = prompt;
-
-    // Trigger change events to notify React/other frameworks
-    const inputEvent = new Event('input', { bubbles: true });
-    const changeEvent = new Event('change', { bubbles: true });
-    
-    this.textArea.dispatchEvent(inputEvent);
-    this.textArea.dispatchEvent(changeEvent);
-
-    // Focus the text area
-    this.textArea.focus();
-
-    PromptUtils.log('info', 'Prompt restored to text area');
-  }
-
-  initializeSidebar() {
-    // Initialize the version tracking sidebar
-    try {
-      const sidebar = new PromptVersionSidebar(this.versionManager);
-      window.promptVersionSidebar = sidebar; // Make globally accessible
-      PromptUtils.log('info', 'Sidebar initialized for ChatGPT');
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to initialize sidebar:', error);
-    }
-  }
-
-  // Manual checkpoint creation
-  async createManualCheckpoint(name = '', description = '') {
-    if (!this.versionManager || !this.textArea) return;
-
-    const currentText = this.textArea.value.trim();
-    if (!currentText) return;
-
-    try {
-      await this.versionManager.createCheckpoint(
-        currentText,
-        null,
-        name || `Manual Checkpoint ${new Date().toLocaleTimeString()}`,
-        description
-      );
-
-      PromptUtils.log('info', 'Manual checkpoint created');
-      return true;
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to create manual checkpoint:', error);
-      return false;
-    }
-  }
-
-  // Get current prompt text
-  getCurrentPrompt() {
-    return this.textArea ? this.textArea.value : '';
-  }
-
-  // Check if adapter is ready
-  isReady() {
-    return this.isInitialized && this.textArea && this.versionManager;
-  }
-
-  addDebugPanel() {
-    // Add a debug panel at the top of the page for testing
-    const debugPanel = document.createElement('div');
-    debugPanel.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 12px 20px;
-      z-index: 10000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-    `;
-    
-    debugPanel.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <span style="font-weight: 600;">🛤️ PromptTrail Debug Mode</span>
-        <span style="opacity: 0.8;">Platform: ChatGPT | Status: Active</span>
-      </div>
-      <div style="display: flex; gap: 10px;">
-        <button id="debugToggleSidebar" style="
-          background: rgba(255,255,255,0.2);
-          border: 1px solid rgba(255,255,255,0.3);
-          color: white;
-          padding: 6px 12px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 12px;
-          transition: all 0.2s;
-        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-          🔄 Toggle Sidebar
-        </button>
-        <button id="debugCreateSidebar" style="
-          background: rgba(255,255,255,0.2);
-          border: 1px solid rgba(255,255,255,0.3);
-          color: white;
-          padding: 6px 12px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 12px;
-          transition: all 0.2s;
-        " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-          ➕ Force Create
-        </button>
-      </div>
-    `;
-    
-    document.body.appendChild(debugPanel);
-    
-    // Add click handlers for debug buttons
-    document.getElementById('debugToggleSidebar').addEventListener('click', () => {
-      console.log('🔧 Debug toggle clicked!');
-      if (this.sidebar) {
-        this.sidebar.toggle();
-      }
-    });
-    
-    document.getElementById('debugCreateSidebar').addEventListener('click', () => {
-      console.log('🔧 Debug force create clicked!');
-      if (this.sidebar) {
-        this.sidebar.createSidebar();
-      }
-    });
-    
-    console.log('🔧 PromptTrail debug panel added with interactive controls');
-  }
-}
-
-// Simple sidebar implementation for version history
-class PromptVersionSidebar {
-  constructor(versionManager) {
-    this.versionManager = versionManager;
-    this.isVisible = false;
-    this.container = null;
-    
+    // Create the sidebar UI
     this.createSidebar();
-    this.setupEventListeners();
+    
+    // Scan existing prompts
+    this.scanExistingPrompts();
+    
+    // Watch for new prompts
+    this.setupObserver();
+    
+    console.log('🛤️ PromptTrail: Ready!', { promptCount: this.prompts.length });
+    
+    // Auto-rescan after a delay to catch late-loading messages
+    setTimeout(() => {
+      const prevCount = this.prompts.length;
+      this.rescan();
+      if (this.prompts.length > prevCount) {
+        console.log('🛤️ PromptTrail: Found', this.prompts.length - prevCount, 'more prompts after delay');
+      }
+    }, 2000);
+  }
+
+  waitForConversation() {
+    return new Promise((resolve) => {
+      const check = () => {
+        const main = document.querySelector('main');
+        if (main) {
+          resolve();
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      check();
+    });
   }
 
   createSidebar() {
-    // Check if sidebar already exists
-    if (document.getElementById('prompt-version-sidebar')) {
-      console.log('📱 Sidebar already exists');
-      return;
-    }
+    // Remove existing sidebar if any
+    const existing = document.getElementById('prompt-timeline-sidebar');
+    if (existing) existing.remove();
 
-    console.log('🔨 Creating sidebar...');
-    
     // Create sidebar container
-    this.container = PromptUtils.createElement('div', {
-      id: 'prompt-version-sidebar',
-      className: 'prompt-version-sidebar',
-      style: 'display: none; position: fixed; top: 0; right: 0; width: 320px; height: 100vh; z-index: 10000;'
-    });
+    this.sidebar = document.createElement('div');
+    this.sidebar.id = 'prompt-timeline-sidebar';
+    this.sidebar.innerHTML = `
+      <div class="pts-header">
+        <div class="pts-title">
+          🛤️ Prompt Trail
+          <span class="pts-count" id="pts-count">0</span>
+        </div>
+        <div class="pts-header-actions">
+          <button class="pts-rescan" title="Rescan prompts">↻</button>
+          <button class="pts-close" title="Hide sidebar">×</button>
+        </div>
+      </div>
+      <div class="pts-content">
+        <div class="pts-timeline" id="pts-prompt-list">
+          <div class="pts-empty">No prompts yet</div>
+        </div>
+      </div>
+    `;
 
-    // Create header
-    const header = PromptUtils.createElement('div', {
-      className: 'pvs-header'
-    });
+    // Add styles
+    this.addStyles();
+    
+    // Add to page
+    document.body.appendChild(this.sidebar);
 
-    const title = PromptUtils.createElement('h3', {}, 'Prompt Versions');
-    const toggleBtn = PromptUtils.createElement('button', {
-      className: 'pvs-toggle',
-      innerHTML: '×'
-    });
-
-    header.appendChild(title);
-    header.appendChild(toggleBtn);
-
-    // Create content area
-    const content = PromptUtils.createElement('div', {
-      className: 'pvs-content',
-      id: 'pvs-content'
-    });
-
-    content.innerHTML = '<p class="pvs-empty">Loading versions...</p>';
-
-    this.container.appendChild(header);
-    this.container.appendChild(content);
-
-    // Add to page body (ensure it's added to the correct document)
-    document.body.appendChild(this.container);
-
-    // Set up toggle functionality
-    toggleBtn.addEventListener('click', () => {
+    // Setup button handlers
+    this.sidebar.querySelector('.pts-close').addEventListener('click', () => {
       this.toggle();
     });
-
-    console.log('✅ Sidebar created and added to DOM');
-    PromptUtils.log('info', 'Sidebar created');
-  }
-
-  setupEventListeners() {
-    // Listen for version updates
-    window.addEventListener('promptVersionUpdate', () => {
-      this.refreshVersionList();
+    
+    this.sidebar.querySelector('.pts-rescan').addEventListener('click', () => {
+      this.rescan();
     });
 
-    // Keyboard shortcut to toggle sidebar (Ctrl+Shift+V)
+    // Keyboard shortcut: Ctrl+Shift+P to toggle
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
         e.preventDefault();
-        console.log('⌨️ Keyboard shortcut triggered');
         this.toggle();
       }
     });
 
-    // Global click handler for testing
-    window.addEventListener('click', (e) => {
-      if (e.target.closest('.pvs-toggle')) {
-        console.log('🖱️ Toggle button clicked');
-      }
-    });
-
-    console.log('🎧 Sidebar event listeners set up');
+    console.log('🛤️ PromptTrail: Sidebar created');
   }
 
-  async refreshVersionList() {
-    const content = document.getElementById('pvs-content');
-    if (!content) return;
+  addStyles() {
+    const styleId = 'prompt-timeline-styles';
+    if (document.getElementById(styleId)) return;
 
-    try {
-      const versions = await this.versionManager.getSessionHistory(20);
-      
-      content.innerHTML = '';
-
-      if (versions.length === 0) {
-        content.innerHTML = '<p class="pvs-empty">No versions yet</p>';
-        return;
+    const styles = document.createElement('style');
+    styles.id = styleId;
+    styles.textContent = `
+      #prompt-timeline-sidebar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 340px;
+        height: 100vh;
+        background: #0d1117;
+        border-left: 1px solid #21262d;
+        z-index: 9999;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        box-shadow: -4px 0 24px rgba(0,0,0,0.5);
       }
 
-      versions.forEach((version, index) => {
-        const versionElement = this.createVersionElement(version, index);
-        content.appendChild(versionElement);
-      });
+      #prompt-timeline-sidebar.pts-hidden {
+        transform: translateX(100%);
+      }
 
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to refresh version list:', error);
-      content.innerHTML = '<p class="pvs-error">Failed to load versions</p>';
-    }
-  }
+      .pts-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: #161b22;
+        border-bottom: 1px solid #21262d;
+        flex-shrink: 0;
+      }
 
-  createVersionElement(version, index) {
-    const element = PromptUtils.createElement('div', {
-      className: `pvs-version ${version.isCheckpoint ? 'checkpoint' : 'auto'}`
-    });
+      .pts-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #c9d1d9;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    const timestamp = PromptUtils.formatTimestamp(version.timestamp);
-    const promptPreview = PromptUtils.truncateText(version.prompt, 60);
-    
-    // Enhanced type indicators
-    const getTypeInfo = (version) => {
-      if (version.isCheckpoint) {
-        return { icon: '📌', label: 'Checkpoint', color: '#28a745' };
+      .pts-count {
+        background: #21262d;
+        color: #8b949e;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+
+      .pts-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
       }
       
-      const changeTypeIcons = {
-        'copy_paste_edit': { icon: '✂️', label: 'Copy+Edit', color: '#17a2b8' },
-        'major_rewrite': { icon: '🔄', label: 'Rewrite', color: '#dc3545' },
-        'detail_addition': { icon: '➕', label: 'Added Detail', color: '#fd7e14' },
-        'refinement': { icon: '✨', label: 'Refined', color: '#6f42c1' },
-        'new_prompt': { icon: '🆕', label: 'New', color: '#007bff' },
-        'general_edit': { icon: '✏️', label: 'Edit', color: '#6c757d' }
-      };
-      
-      return changeTypeIcons[version.changeType] || 
-             { icon: '💬', label: 'Auto', color: '#6c757d' };
-    };
+      .pts-close, .pts-rescan {
+        background: none;
+        border: none;
+        color: #8b949e;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 6px 8px;
+        border-radius: 6px;
+        transition: all 0.15s;
+      }
 
-    const typeInfo = getTypeInfo(version);
+      .pts-close:hover, .pts-rescan:hover {
+        color: #c9d1d9;
+        background: #21262d;
+      }
 
-    element.innerHTML = `
-      <div class="pvs-version-header">
-        <div class="pvs-version-type-info">
-          <span class="pvs-version-icon" style="color: ${typeInfo.color}">${typeInfo.icon}</span>
-          <span class="pvs-version-label" style="color: ${typeInfo.color}">${typeInfo.label}</span>
-        </div>
-        <span class="pvs-version-time">${timestamp}</span>
-      </div>
-      <div class="pvs-version-preview">${promptPreview}</div>
-      ${version.checkpointName ? `
-        <div class="pvs-checkpoint-name">📝 ${version.checkpointName}</div>
-      ` : ''}
-      <div class="pvs-version-actions">
-        <button class="pvs-restore" data-version-id="${version.id}">Restore</button>
-        <button class="pvs-branch" data-version-id="${version.id}">Branch</button>
-        ${!version.isCheckpoint ? `
-          <button class="pvs-promote" data-version-id="${version.id}">Pin</button>
-        ` : ''}
-      </div>
+      .pts-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+      }
+
+      .pts-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .pts-content::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .pts-content::-webkit-scrollbar-thumb {
+        background: #30363d;
+        border-radius: 4px;
+        border: 2px solid #0d1117;
+      }
+
+      .pts-content::-webkit-scrollbar-thumb:hover {
+        background: #484f58;
+      }
+
+      .pts-empty {
+        color: #8b949e;
+        text-align: center;
+        padding: 40px 20px;
+        font-size: 13px;
+      }
+
+      /* Timeline wrapper */
+      .pts-timeline {
+        position: relative;
+        margin-left: 8px;
+      }
+
+      .pts-prompt-item {
+        position: relative;
+        margin-left: 28px;
+        margin-bottom: 8px;
+        padding: 12px 16px;
+        background: #161b22;
+        border: 1px solid #21262d;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+      }
+
+      .pts-prompt-item:hover {
+        background: #1c2128;
+        border-color: #388bfd;
+      }
+
+      /* Timeline node - the circle */
+      .pts-prompt-item::before {
+        content: '';
+        position: absolute;
+        left: -22px;
+        top: 16px;
+        width: 12px;
+        height: 12px;
+        background: #0d1117;
+        border: 2px solid #1f6feb;
+        border-radius: 50%;
+        z-index: 2;
+      }
+
+      .pts-prompt-item:hover::before {
+        background: #1f6feb;
+        box-shadow: 0 0 10px rgba(31, 111, 235, 0.5);
+      }
+
+      /* Connecting line - passes through center of circles */
+      .pts-prompt-item::after {
+        content: '';
+        position: absolute;
+        left: -17px;
+        top: 22px;
+        width: 2px;
+        height: calc(100% + 2px);
+        background: #1f6feb;
+        z-index: 1;
+      }
+
+      /* No line after the last item */
+      .pts-prompt-item:last-child::after {
+        display: none;
+      }
+
+      /* Prompt number badge */
+      .pts-prompt-num {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #8b949e;
+        margin-bottom: 8px;
+      }
+
+      .pts-prompt-num span {
+        background: #1f6feb;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+      }
+
+      .pts-prompt-text {
+        font-size: 13px;
+        color: #c9d1d9;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+        transition: all 0.3s ease;
+      }
+
+      /* Expand on hover */
+      .pts-prompt-item:hover .pts-prompt-text {
+        -webkit-line-clamp: 8;
+        color: #f0f6fc;
+      }
+
+      .pts-prompt-item.pts-active {
+        background: #0c2d6b;
+        border-color: #388bfd;
+      }
+
+      .pts-prompt-item.pts-active::before {
+        background: #388bfd;
+        border-color: #388bfd;
+        box-shadow: 0 0 12px rgba(56, 139, 253, 0.6);
+      }
+
+      /* Toggle button when sidebar is hidden */
+      #pts-toggle-btn {
+        position: fixed;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%);
+        background: #1f6feb;
+        color: #fff;
+        border: none;
+        padding: 16px 10px;
+        border-radius: 12px 0 0 12px;
+        cursor: pointer;
+        z-index: 9998;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: -4px 0 16px rgba(31, 111, 235, 0.4);
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        letter-spacing: 1px;
+        transition: all 0.2s;
+      }
+
+      #pts-toggle-btn:hover {
+        background: #388bfd;
+        padding-right: 16px;
+        box-shadow: -6px 0 24px rgba(31, 111, 235, 0.6);
+      }
+
+      /* Highlight animation */
+      @keyframes pts-highlight {
+        0%, 100% { box-shadow: none; }
+        50% { box-shadow: 0 0 0 4px rgba(56, 139, 253, 0.3); }
+      }
+
+      .pts-highlight-flash {
+        animation: pts-highlight 0.6s ease-in-out 3;
+      }
     `;
 
-    // Add event listeners
-    const restoreBtn = element.querySelector('.pvs-restore');
-    const branchBtn = element.querySelector('.pvs-branch');
-    const promoteBtn = element.querySelector('.pvs-promote');
-
-    restoreBtn.addEventListener('click', () => {
-      this.versionManager.restoreVersion(version.id);
-    });
-
-    branchBtn.addEventListener('click', () => {
-      this.createBranchFromVersion(version.id);
-    });
-
-    if (promoteBtn) {
-      promoteBtn.addEventListener('click', () => {
-        this.promoteToCheckpoint(version.id);
-      });
-    }
-
-    return element;
-  }
-
-  async promoteToCheckpoint(versionId) {
-    const checkpointName = prompt('Name this checkpoint:') || 
-                          `Promoted ${new Date().toLocaleTimeString()}`;
-    
-    try {
-      await this.versionManager.storage.createCheckpoint(
-        versionId, 
-        checkpointName, 
-        'Promoted from auto-save'
-      );
-      this.refreshVersionList();
-      this.showNotification('✓ Promoted to checkpoint!');
-    } catch (error) {
-      this.showNotification('✗ Failed to promote');
-      PromptUtils.log('error', 'Failed to promote version:', error);
-    }
-  }
-
-  showNotification(message) {
-    // Create notification in sidebar context
-    const notification = document.createElement('div');
-    notification.className = 'pvs-notification';
-    notification.textContent = message;
-    
-    this.container.appendChild(notification);
-    
-    setTimeout(() => {
-      if (this.container.contains(notification)) {
-        this.container.removeChild(notification);
-      }
-    }, 3000);
-  }
-
-  async createBranchFromVersion(versionId) {
-    try {
-      const branchInfo = await this.versionManager.createBranch(versionId, '');
-      PromptUtils.log('info', 'Branch created from version:', versionId);
-      this.refreshVersionList();
-    } catch (error) {
-      PromptUtils.log('error', 'Failed to create branch:', error);
-    }
+    document.head.appendChild(styles);
   }
 
   toggle() {
-    console.log('🔄 Sidebar toggle called');
-    
-    if (!this.container) {
-      console.error('❌ Sidebar container not found');
-      return;
-    }
-    
     this.isVisible = !this.isVisible;
-    this.container.style.display = this.isVisible ? 'block' : 'none';
-    
-    console.log('📱 Sidebar:', this.isVisible ? 'shown' : 'hidden');
     
     if (this.isVisible) {
-      this.refreshVersionList();
+      this.sidebar.classList.remove('pts-hidden');
+      const toggleBtn = document.getElementById('pts-toggle-btn');
+      if (toggleBtn) toggleBtn.remove();
+    } else {
+      this.sidebar.classList.add('pts-hidden');
+      this.createToggleButton();
     }
   }
 
-  show() {
-    console.log('👀 Showing sidebar');
-    if (!this.container) {
-      console.error('❌ Cannot show sidebar - container not found');
+  createToggleButton() {
+    if (document.getElementById('pts-toggle-btn')) return;
+    
+    const btn = document.createElement('button');
+    btn.id = 'pts-toggle-btn';
+    btn.textContent = '🛤️ Trail';
+    btn.addEventListener('click', () => this.toggle());
+    document.body.appendChild(btn);
+  }
+
+  scanExistingPrompts() {
+    // Multiple selectors to find user messages (ChatGPT DOM varies)
+    const selectors = [
+      '[data-message-author-role="user"]',
+      'article[data-testid^="conversation-turn"]:has([data-message-author-role="user"])',
+      'div[data-message-author-role="user"]',
+      '.agent-turn [data-message-author-role="user"]'
+    ];
+    
+    let userMessages = new Set();
+    
+    // Try each selector
+    for (const selector of selectors) {
+      try {
+        document.querySelectorAll(selector).forEach(el => {
+          // Get the actual message container
+          const msgEl = el.matches('[data-message-author-role="user"]') 
+            ? el 
+            : el.querySelector('[data-message-author-role="user"]');
+          if (msgEl) userMessages.add(msgEl);
+        });
+      } catch (e) {
+        console.log('🛤️ PromptTrail: Selector failed:', selector);
+      }
+    }
+    
+    // Convert to array and sort by DOM position
+    const sortedMessages = Array.from(userMessages).sort((a, b) => {
+      const position = a.compareDocumentPosition(b);
+      return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    
+    console.log('🛤️ PromptTrail: Found', sortedMessages.length, 'existing prompts');
+    
+    sortedMessages.forEach((msgElement, index) => {
+      this.addPromptFromElement(msgElement, index);
+    });
+
+    this.renderPromptList();
+  }
+  
+  rescan() {
+    console.log('🛤️ PromptTrail: Rescanning...');
+    this.prompts = [];
+    this.scanExistingPrompts();
+  }
+
+  addPromptFromElement(element, index = null) {
+    // Check if we already have this prompt (by element reference)
+    const existing = this.prompts.find(p => p.element === element);
+    if (existing) return existing;
+    
+    // Multiple ways to extract text (ChatGPT DOM varies)
+    const textSelectors = [
+      '[data-message-content]',
+      '.whitespace-pre-wrap',
+      '.text-base',
+      '.markdown',
+      'div.min-h-8',
+      'p'
+    ];
+    
+    let text = '';
+    for (const selector of textSelectors) {
+      const container = element.querySelector(selector);
+      if (container?.textContent?.trim()) {
+        text = container.textContent.trim();
+        break;
+      }
+    }
+    
+    // Fallback to element's own text
+    if (!text) {
+      text = element.textContent?.trim() || '';
+    }
+    
+    if (!text) {
+      console.log('🛤️ PromptTrail: Could not extract text from element', element);
+      return null;
+    }
+
+    // Try to extract timestamp from DOM
+    const timestamp = this.extractTimestamp(element);
+    
+    const prompt = {
+      id: `prompt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      text: text,
+      timestamp: timestamp,
+      element: element,
+      index: index !== null ? index : this.prompts.length
+    };
+
+    this.prompts.push(prompt);
+    console.log('🛤️ PromptTrail: Added prompt:', text.substring(0, 50) + '...', 'timestamp:', timestamp);
+    return prompt;
+  }
+  
+  extractTimestamp(element) {
+    // Try to find timestamp in various places
+    
+    // 1. Check for time element in the message or nearby
+    const conversationTurn = element.closest('[data-testid^="conversation-turn"]') || 
+                             element.closest('article') ||
+                             element.parentElement?.parentElement?.parentElement;
+    
+    if (conversationTurn) {
+      // Look for time element
+      const timeEl = conversationTurn.querySelector('time');
+      if (timeEl) {
+        const datetime = timeEl.getAttribute('datetime');
+        if (datetime) return new Date(datetime);
+        const title = timeEl.getAttribute('title');
+        if (title) return new Date(title);
+      }
+      
+      // Look for title attribute with date
+      const titleEl = conversationTurn.querySelector('[title]');
+      if (titleEl) {
+        const title = titleEl.getAttribute('title');
+        const parsed = Date.parse(title);
+        if (!isNaN(parsed)) return new Date(parsed);
+      }
+    }
+    
+    // 2. Check data attributes on message itself
+    const msgId = element.getAttribute('data-message-id');
+    if (msgId) {
+      // Some IDs are UUIDs with timestamp component (first 8 chars can be hex timestamp)
+      // UUID v1 has timestamp, but ChatGPT likely uses v4 (random)
+      console.log('🛤️ PromptTrail: Message ID:', msgId);
+    }
+    
+    // 3. Look for any element with datetime-like content near the message
+    const parent = element.closest('[class*="group"]') || element.parentElement;
+    if (parent) {
+      const allText = parent.innerText;
+      // Look for time patterns like "2:30 PM" or "Yesterday" or dates
+      const timePatterns = [
+        /(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i,
+        /(Today|Yesterday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i,
+        /(\d{1,2}\/\d{1,2}\/\d{2,4})/
+      ];
+      
+      for (const pattern of timePatterns) {
+        const match = allText.match(pattern);
+        if (match) {
+          console.log('🛤️ PromptTrail: Found time pattern:', match[1]);
+        }
+      }
+    }
+    
+    // Fallback: no timestamp found
+    return null;
+  }
+
+  setupObserver() {
+    // Watch for new messages being added to the conversation
+    const conversationContainer = document.querySelector('main') || document.body;
+
+    this.observer = new MutationObserver((mutations) => {
+      let shouldUpdate = false;
+
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            // Check if this node or its children contain a user message
+            const userMsg = node.matches?.('[data-message-author-role="user"]') 
+              ? node 
+              : node.querySelector?.('[data-message-author-role="user"]');
+            
+            if (userMsg && !this.prompts.find(p => p.element === userMsg)) {
+              this.addPromptFromElement(userMsg);
+              shouldUpdate = true;
+            }
+          }
+        });
+      });
+
+      if (shouldUpdate) {
+        this.renderPromptList();
+      }
+    });
+
+    this.observer.observe(conversationContainer, {
+      childList: true,
+      subtree: true
+    });
+
+    console.log('🛤️ PromptTrail: Observer active');
+  }
+
+  renderPromptList() {
+    const container = document.getElementById('pts-prompt-list');
+    const countEl = document.getElementById('pts-count');
+    if (!container) return;
+
+    // Update count badge
+    if (countEl) {
+      countEl.textContent = this.prompts.length;
+    }
+
+    if (this.prompts.length === 0) {
+      container.innerHTML = '<div class="pts-empty">No prompts yet.<br><small style="color:#6e7681">Start a conversation!</small></div>';
       return;
     }
-    
-    this.isVisible = true;
-    this.container.style.display = 'block';
-    this.refreshVersionList();
+
+    container.innerHTML = this.prompts.map((prompt, idx) => `
+      <div class="pts-prompt-item" data-prompt-id="${prompt.id}">
+        <div class="pts-prompt-num"><span>${idx + 1}</span></div>
+        <div class="pts-prompt-text">${this.escapeHtml(prompt.text)}</div>
+      </div>
+    `).join('');
+
+    // Add click handlers
+    container.querySelectorAll('.pts-prompt-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        const promptId = item.dataset.promptId;
+        this.scrollToPrompt(promptId);
+      });
+    });
   }
 
-  hide() {
-    console.log('🙈 Hiding sidebar');
-    if (!this.container) return;
+  scrollToPrompt(promptId) {
+    const prompt = this.prompts.find(p => p.id === promptId);
+    if (!prompt || !prompt.element) {
+      console.warn('🛤️ PromptTrail: Prompt element not found');
+      return;
+    }
+
+    // Remove active state from all items
+    document.querySelectorAll('.pts-prompt-item').forEach(el => {
+      el.classList.remove('pts-active');
+    });
+
+    // Add active state to clicked item
+    const clickedItem = document.querySelector(`[data-prompt-id="${promptId}"]`);
+    if (clickedItem) {
+      clickedItem.classList.add('pts-active');
+    }
+
+    // Scroll the prompt into view
+    prompt.element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
+    // Add highlight effect
+    prompt.element.classList.add('pts-highlight-flash');
+    setTimeout(() => {
+      prompt.element.classList.remove('pts-highlight-flash');
+    }, 2000);
+
+    console.log('🛤️ PromptTrail: Scrolled to prompt', promptId);
+  }
+
+  formatTime(date) {
+    const now = new Date();
+    const diff = now - date;
     
-    this.isVisible = false;
-    this.container.style.display = 'none';
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 
-// Initialize the ChatGPT adapter when the script loads
-let chatGPTAdapter = null;
+// Global instance
+let promptTimeline = null;
 
+// Initialize when ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    chatGPTAdapter = new ChatGPTAdapter();
+    promptTimeline = new PromptTimeline();
   });
 } else {
-  chatGPTAdapter = new ChatGPTAdapter();
+  promptTimeline = new PromptTimeline();
 }
 
-PromptUtils.log('info', 'ChatGPT adapter script loaded');
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'TOGGLE_SIDEBAR' && promptTimeline) {
+    promptTimeline.toggle();
+    sendResponse({ success: true });
+  }
+  return true;
+});
+
+// Handle SPA navigation (ChatGPT is a single-page app)
+let lastUrl = location.href;
+new MutationObserver(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    console.log('🛤️ PromptTrail: URL changed, reinitializing...');
+    
+    // Clean up old instance
+    if (promptTimeline) {
+      if (promptTimeline.observer) {
+        promptTimeline.observer.disconnect();
+      }
+      promptTimeline.prompts = [];
+    }
+    
+    // Reinitialize after a short delay
+    setTimeout(() => {
+      promptTimeline = new PromptTimeline();
+    }, 1000);
+  }
+}).observe(document.body, { subtree: true, childList: true });
