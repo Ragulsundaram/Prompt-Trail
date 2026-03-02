@@ -8,6 +8,7 @@ class PromptTimeline {
     this.isVisible = true;
     this.bookmarks = new Set(); // Track bookmarked prompt IDs
     this.showOnlyBookmarks = false; // Filter toggle
+    this.conversationId = this.getConversationId(); // Current chat ID
     
     this.init();
   }
@@ -17,6 +18,9 @@ class PromptTimeline {
     
     // Wait for the page to load
     await this.waitForConversation();
+    
+    // Load saved bookmarks for this conversation
+    this.loadBookmarks();
     
     // Create the sidebar UI
     this.createSidebar();
@@ -51,6 +55,75 @@ class PromptTimeline {
       };
       check();
     });
+  }
+  
+  getConversationId() {
+    // Extract conversation ID from URL: /c/abc123 or /g/abc123
+    const match = window.location.pathname.match(/\/[cg]\/([a-zA-Z0-9-]+)/);
+    return match ? match[1] : 'default';
+  }
+  
+  getStorageKey() {
+    return `prompttrail-bookmarks-${this.conversationId}`;
+  }
+  
+  loadBookmarks() {
+    try {
+      const saved = localStorage.getItem(this.getStorageKey());
+      if (saved) {
+        const bookmarkIds = JSON.parse(saved);
+        this.bookmarks = new Set(bookmarkIds);
+        console.log('🛤️ PromptTrail: Loaded', this.bookmarks.size, 'bookmarks');
+      }
+    } catch (e) {
+      console.warn('🛤️ PromptTrail: Could not load bookmarks', e);
+    }
+  }
+  
+  saveBookmarks() {
+    try {
+      const bookmarkIds = Array.from(this.bookmarks);
+      localStorage.setItem(this.getStorageKey(), JSON.stringify(bookmarkIds));
+      console.log('🛤️ PromptTrail: Saved', bookmarkIds.length, 'bookmarks');
+    } catch (e) {
+      console.warn('🛤️ PromptTrail: Could not save bookmarks', e);
+    }
+  }
+  
+  getStableMessageId(element) {
+    // Try to get ChatGPT's message ID from various attributes
+    
+    // 1. Direct message ID on the element
+    let messageId = element.getAttribute('data-message-id');
+    if (messageId) return messageId;
+    
+    // 2. Look in parent conversation turn
+    const conversationTurn = element.closest('[data-testid^="conversation-turn"]');
+    if (conversationTurn) {
+      const testId = conversationTurn.getAttribute('data-testid');
+      if (testId) return testId;
+    }
+    
+    // 3. Look for any parent with data-message-id
+    const parentWithId = element.closest('[data-message-id]');
+    if (parentWithId) {
+      messageId = parentWithId.getAttribute('data-message-id');
+      if (messageId) return messageId;
+    }
+    
+    // 4. Fallback: create a hash from the text content (first 100 chars)
+    const text = element.textContent?.trim().substring(0, 100) || '';
+    return 'hash-' + this.hashString(text);
+  }
+  
+  hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
   }
 
   createSidebar() {
@@ -607,8 +680,11 @@ class PromptTimeline {
   }
 
   addPromptFromElement(element, index = null) {
-    // Check if we already have this prompt (by element reference)
-    const existing = this.prompts.find(p => p.element === element);
+    // Get stable message ID from ChatGPT's DOM
+    const messageId = this.getStableMessageId(element);
+    
+    // Check if we already have this prompt (by ID)
+    const existing = this.prompts.find(p => p.id === messageId);
     if (existing) return existing;
     
     // Multiple ways to extract text (ChatGPT DOM varies)
@@ -642,9 +718,9 @@ class PromptTimeline {
 
     // Try to extract timestamp from DOM
     const timestamp = this.extractTimestamp(element);
-    
+
     const prompt = {
-      id: `prompt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: messageId,
       text: text,
       timestamp: timestamp,
       element: element,
@@ -833,6 +909,9 @@ class PromptTimeline {
       this.bookmarks.add(promptId);
       console.log('🛤️ PromptTrail: Added bookmark', promptId);
     }
+    
+    // Save to localStorage
+    this.saveBookmarks();
     
     // Update UI
     const item = document.querySelector(`[data-prompt-id="${promptId}"]`);
