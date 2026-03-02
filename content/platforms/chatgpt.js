@@ -67,7 +67,7 @@ class PromptTimeline {
         </div>
         <div class="pts-header-actions">
           <button class="pts-rescan" title="Rescan prompts">↻</button>
-          <button class="pts-close" title="Hide sidebar">×</button>
+          <button class="pts-close" title="Collapse sidebar">»</button>
         </div>
       </div>
       <div class="pts-content">
@@ -84,12 +84,21 @@ class PromptTimeline {
     document.body.appendChild(this.sidebar);
 
     // Setup button handlers
-    this.sidebar.querySelector('.pts-close').addEventListener('click', () => {
+    this.sidebar.querySelector('.pts-close').addEventListener('click', (e) => {
+      e.stopPropagation();
       this.toggle();
     });
     
-    this.sidebar.querySelector('.pts-rescan').addEventListener('click', () => {
+    this.sidebar.querySelector('.pts-rescan').addEventListener('click', (e) => {
+      e.stopPropagation();
       this.rescan();
+    });
+    
+    // Click on collapsed sidebar to expand
+    this.sidebar.addEventListener('click', (e) => {
+      if (this.sidebar.classList.contains('pts-collapsed')) {
+        this.toggle();
+      }
     });
 
     // Keyboard shortcut: Ctrl+Shift+P to toggle
@@ -123,8 +132,45 @@ class PromptTimeline {
         display: flex;
         flex-direction: column;
         box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+        transition: all 0.3s ease;
+        border-radius: 0;
       }
 
+      /* Collapsed state - small square button */
+      #prompt-timeline-sidebar.pts-collapsed {
+        width: 48px;
+        height: 48px;
+        min-width: 48px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-radius: 12px 0 0 12px;
+        cursor: pointer;
+        overflow: hidden;
+      }
+
+      #prompt-timeline-sidebar.pts-collapsed .pts-header,
+      #prompt-timeline-sidebar.pts-collapsed .pts-content {
+        display: none;
+      }
+
+      /* Collapsed indicator */
+      #prompt-timeline-sidebar.pts-collapsed::before {
+        content: '🛤️';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 22px;
+      }
+
+      /* Collapsed sidebar hover effect */
+      #prompt-timeline-sidebar.pts-collapsed:hover {
+        background: #161b22;
+        border-left-color: #1f6feb;
+        box-shadow: -4px 0 16px rgba(31, 111, 235, 0.3);
+      }
+
+      /* Fully hidden state */
       #prompt-timeline-sidebar.pts-hidden {
         transform: translateX(100%);
       }
@@ -317,34 +363,6 @@ class PromptTimeline {
         box-shadow: 0 0 12px rgba(56, 139, 253, 0.6);
       }
 
-      /* Toggle button when sidebar is hidden */
-      #pts-toggle-btn {
-        position: fixed;
-        top: 50%;
-        right: 0;
-        transform: translateY(-50%);
-        background: #1f6feb;
-        color: #fff;
-        border: none;
-        padding: 16px 10px;
-        border-radius: 12px 0 0 12px;
-        cursor: pointer;
-        z-index: 9998;
-        font-size: 12px;
-        font-weight: 600;
-        box-shadow: -4px 0 16px rgba(31, 111, 235, 0.4);
-        writing-mode: vertical-rl;
-        text-orientation: mixed;
-        letter-spacing: 1px;
-        transition: all 0.2s;
-      }
-
-      #pts-toggle-btn:hover {
-        background: #388bfd;
-        padding-right: 16px;
-        box-shadow: -6px 0 24px rgba(31, 111, 235, 0.6);
-      }
-
       /* Highlight animation */
       @keyframes pts-highlight {
         0%, 100% { box-shadow: none; }
@@ -360,26 +378,17 @@ class PromptTimeline {
   }
 
   toggle() {
-    this.isVisible = !this.isVisible;
+    const isCollapsed = this.sidebar.classList.contains('pts-collapsed');
     
-    if (this.isVisible) {
-      this.sidebar.classList.remove('pts-hidden');
-      const toggleBtn = document.getElementById('pts-toggle-btn');
-      if (toggleBtn) toggleBtn.remove();
+    if (isCollapsed) {
+      // Expand
+      this.sidebar.classList.remove('pts-collapsed');
+      this.isVisible = true;
     } else {
-      this.sidebar.classList.add('pts-hidden');
-      this.createToggleButton();
+      // Collapse
+      this.sidebar.classList.add('pts-collapsed');
+      this.isVisible = false;
     }
-  }
-
-  createToggleButton() {
-    if (document.getElementById('pts-toggle-btn')) return;
-    
-    const btn = document.createElement('button');
-    btn.id = 'pts-toggle-btn';
-    btn.textContent = '🛤️ Trail';
-    btn.addEventListener('click', () => this.toggle());
-    document.body.appendChild(btn);
   }
 
   scanExistingPrompts() {
