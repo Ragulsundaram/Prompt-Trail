@@ -295,7 +295,7 @@ class PromptTimeline {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px 20px;
+        padding: 10px 16px;
         background: #161b22;
         border-bottom: 1px solid #21262d;
         flex-shrink: 0;
