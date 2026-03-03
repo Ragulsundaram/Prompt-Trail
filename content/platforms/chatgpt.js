@@ -42,22 +42,30 @@ class PromptTimeline {
     
     console.log('🛤️ PromptTrail: Ready!', { promptCount: this.prompts.length });
     
-    // Auto-rescan after a delay to catch late-loading messages
-    setTimeout(() => {
-      const prevCount = this.prompts.length;
-      this.rescan();
-      if (this.prompts.length > prevCount) {
-        console.log('🛤️ PromptTrail: Found', this.prompts.length - prevCount, 'more prompts after delay');
-      }
-    }, 2000);
+    // Auto-rescan multiple times to catch late-loading messages
+    const rescanDelays = [1000, 2000, 4000];
+    rescanDelays.forEach(delay => {
+      setTimeout(() => {
+        const prevCount = this.prompts.length;
+        this.rescan();
+        if (this.prompts.length > prevCount) {
+          console.log(`🛤️ PromptTrail: Found ${this.prompts.length - prevCount} more prompts after ${delay}ms`);
+        }
+      }, delay);
+    });
   }
 
   waitForConversation() {
     return new Promise((resolve) => {
       const check = () => {
         const main = document.querySelector('main');
-        if (main) {
+        // Also check if any messages are loaded
+        const hasMessages = document.querySelector('[data-message-author-role]');
+        if (main && hasMessages) {
           resolve();
+        } else if (main) {
+          // Main exists but no messages yet - wait a bit more then resolve anyway
+          setTimeout(resolve, 1000);
         } else {
           setTimeout(check, 500);
         }
