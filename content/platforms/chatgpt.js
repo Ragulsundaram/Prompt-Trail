@@ -897,15 +897,16 @@ class PromptTimeline {
         background: #161b22;
         border: 1px solid #30363d;
         border-radius: 8px;
-        padding: 8px 12px;
-        width: 260px;
-        max-width: 260px;
+        padding: 6px 10px;
+        width: 220px;
+        max-width: 220px;
         opacity: 0;
         visibility: hidden;
         transition: opacity 0.15s, visibility 0.15s;
         pointer-events: none;
         box-shadow: -4px 0 16px rgba(0,0,0,0.3);
         z-index: 100;
+        font-size: 11px;
       }
 
       /* Hover bridge - invisible area between dot and tooltip */
@@ -951,14 +952,15 @@ class PromptTimeline {
         gap: 2px;
       }
 
-      .pts-minimal-tooltip .pts-tooltip-text {
-        font-size: 12px;
-        color: #c9d1d9;
-        line-height: 1.4;
-        display: -webkit-box;
-        -webkit-line-clamp: 4;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+      #prompt-timeline-sidebar.pts-minimal .pts-minimal-tooltip .pts-tooltip-text {
+        font-size: 11px !important;
+        color: #c9d1d9 !important;
+        line-height: 1.5 !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 4 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+        word-break: break-word !important;
       }
 
       .pts-minimal-tooltip .pts-btn {
@@ -1276,7 +1278,7 @@ class PromptTimeline {
                 </button>
               </div>
             </div>
-            <div class="pts-tooltip-text">${this.escapeHtml(prompt.text)}</div>
+            <div class="pts-tooltip-text" style="font-size: 11px !important;">${this.escapeHtml(prompt.text)}</div>
           </div>
         ` : ''}
       </div>
