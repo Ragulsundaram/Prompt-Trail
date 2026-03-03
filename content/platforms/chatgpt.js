@@ -932,10 +932,18 @@ class PromptTimeline {
         margin-bottom: 6px;
       }
 
-      .pts-minimal-tooltip .pts-tooltip-num {
-        font-size: 11px;
+      .pts-minimal-tooltip .pts-tooltip-badge {
+        background: #7B77F0;
+        color: #fff;
+        font-size: 10px;
         font-weight: 600;
-        color: #7B77F0;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .pts-minimal-tooltip .pts-tooltip-actions {
@@ -1253,7 +1261,7 @@ class PromptTimeline {
         ${isMinimal ? `
           <div class="pts-minimal-tooltip">
             <div class="pts-tooltip-header">
-              <div class="pts-tooltip-num">Prompt #${idx + 1}</div>
+              <span class="pts-tooltip-badge">${idx + 1}</span>
               <div class="pts-tooltip-actions">
                 <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
