@@ -8,6 +8,8 @@ class PromptTimeline {
     this.isVisible = true;
     this.bookmarks = new Set(); // Track bookmarked prompt IDs
     this.showOnlyBookmarks = false; // Filter toggle
+    this.dotOffset = 0; // For minimal mode dot navigation
+    this.visibleDotCount = 20; // How many dots to show at once in minimal mode
     this.conversationId = this.getConversationId(); // Current chat ID
     
     // Resize state
@@ -280,9 +282,19 @@ class PromptTimeline {
         </div>
       </div>
       <div class="pts-content">
+        <button class="pts-nav-up" title="Scroll up">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </button>
         <div class="pts-timeline" id="pts-prompt-list">
           <div class="pts-empty">No prompts yet</div>
         </div>
+        <button class="pts-nav-down" title="Scroll down">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
       </div>
       <svg class="pts-collapsed-icon" viewBox="0 0 557 557" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M425.764 0H130.336C58.353 0 0 58.353 0 130.336V425.764C0 497.746 58.353 556.1 130.336 556.1H425.764C497.746 556.1 556.1 497.746 556.1 425.764V130.336C556.1 58.353 497.746 0 425.764 0Z" fill="url(#grad2)"/>
@@ -360,7 +372,18 @@ class PromptTimeline {
       e.stopPropagation();
       this.expandToFull();
     });
-
+    
+    // Navigation buttons for minimal mode
+    this.sidebar.querySelector('.pts-nav-up').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.scrollDots('up');
+    });
+    
+    this.sidebar.querySelector('.pts-nav-down').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.scrollDots('down');
+    });
+    
     console.log('🛤️ PromptTrail: Sidebar created');
   }
 
@@ -793,10 +816,55 @@ class PromptTimeline {
         display: none;
       }
 
+
+      /* Navigation buttons for minimal mode */
+      .pts-nav-up, .pts-nav-down {
+        display: none;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up,
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down {
+        display: none;
+        width: 20px;
+        height: 20px;
+        padding: 2px;
+        margin: 4px auto;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 50%;
+        color: #8b949e;
+        cursor: pointer;
+        transition: all 0.15s;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up:hover,
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down:hover {
+        background: #21262d;
+        color: #c9d1d9;
+        border-color: #7B77F0;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up svg,
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up.pts-nav-visible,
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down.pts-nav-visible {
+        display: flex;
+      }
+
       #prompt-timeline-sidebar.pts-minimal .pts-content {
         padding: 12px 6px;
+        max-height: 65vh;
         overflow: visible;
         background: transparent;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-resize-handle {
@@ -809,6 +877,8 @@ class PromptTimeline {
         flex-direction: column;
         align-items: center;
         gap: 4px;
+        overflow: visible;
+        max-height: 55vh;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-empty {
@@ -913,7 +983,7 @@ class PromptTimeline {
         transition: opacity 0.15s, visibility 0.15s;
         pointer-events: none;
         box-shadow: -4px 0 16px rgba(0,0,0,0.3);
-        z-index: 100;
+        z-index: 10001;
         font-size: 11px;
       }
 
@@ -992,6 +1062,8 @@ class PromptTimeline {
     this.sidebarWidth = this.minWidth;
     this.updateSidebarWidth();
     this.saveSidebarWidth();
+    // Update nav button visibility
+    setTimeout(() => this.updateNavButtons(), 50);
   }
   
   minimizeToIcon() {
@@ -1010,6 +1082,44 @@ class PromptTimeline {
     this.updateSidebarWidth();
     this.saveSidebarWidth();
     this.isVisible = true;
+  }
+  
+  scrollDots(direction) {
+    const displayPrompts = this.showOnlyBookmarks 
+      ? this.prompts.filter(p => this.bookmarks.has(p.id))
+      : this.prompts;
+    
+    const step = 5; // How many dots to shift at once
+    
+    if (direction === 'up') {
+      this.dotOffset = Math.max(0, this.dotOffset - step);
+    } else {
+      const maxOffset = Math.max(0, displayPrompts.length - this.visibleDotCount);
+      this.dotOffset = Math.min(maxOffset, this.dotOffset + step);
+    }
+
+    this.renderPromptList();
+  }
+  
+  updateNavButtons() {
+    if (!this.isMinimalMode()) return;
+
+    const upBtn = this.sidebar.querySelector('.pts-nav-up');
+    const downBtn = this.sidebar.querySelector('.pts-nav-down');
+
+    if (!upBtn || !downBtn) return;
+
+    const displayPrompts = this.showOnlyBookmarks 
+      ? this.prompts.filter(p => this.bookmarks.has(p.id))
+      : this.prompts;
+
+    // Check if we can go up (there are dots above)
+    const canGoUp = this.dotOffset > 0;
+    upBtn.classList.toggle('pts-nav-visible', canGoUp);
+
+    // Check if we can go down (there are dots below)
+    const canGoDown = this.dotOffset + this.visibleDotCount < displayPrompts.length;
+    downBtn.classList.toggle('pts-nav-visible', canGoDown);
   }
   
   toggle() {
@@ -1069,6 +1179,7 @@ class PromptTimeline {
   rescan() {
     console.log('🛤️ PromptTrail: Rescanning...');
     this.prompts = [];
+    this.dotOffset = 0; // Reset dot navigation
     this.scanExistingPrompts();
   }
 
@@ -1249,10 +1360,20 @@ class PromptTimeline {
 
     const isMinimal = this.isMinimalMode();
     
-    container.innerHTML = displayPrompts.map((prompt, idx) => `
+    // In minimal mode, show only a slice of dots based on offset
+    let visiblePrompts = displayPrompts;
+    let startIdx = 0;
+    if (isMinimal && displayPrompts.length > this.visibleDotCount) {
+      startIdx = this.dotOffset;
+      visiblePrompts = displayPrompts.slice(this.dotOffset, this.dotOffset + this.visibleDotCount);
+    }
+
+    container.innerHTML = visiblePrompts.map((prompt, idx) => {
+      const actualIdx = startIdx + idx; // Original index for display
+      return `
       <div class="pts-prompt-item ${this.bookmarks.has(prompt.id) ? 'pts-is-bookmarked' : ''}" data-prompt-id="${prompt.id}">
         <div class="pts-prompt-header">
-          <div class="pts-prompt-num"><span>${idx + 1}</span></div>
+          <div class="pts-prompt-num"><span>${actualIdx + 1}</span></div>
           <div class="pts-prompt-actions">
             <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1271,7 +1392,7 @@ class PromptTimeline {
         ${isMinimal ? `
           <div class="pts-minimal-tooltip">
             <div class="pts-tooltip-header">
-              <span class="pts-tooltip-badge">${idx + 1}</span>
+              <span class="pts-tooltip-badge">${actualIdx + 1}</span>
               <div class="pts-tooltip-actions">
                 <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1290,7 +1411,7 @@ class PromptTimeline {
           </div>
         ` : ''}
       </div>
-    `).join('');
+    `}).join('');
 
     // Add click handlers
     container.querySelectorAll('.pts-prompt-item').forEach((item) => {
@@ -1319,6 +1440,9 @@ class PromptTimeline {
         });
       });
     });
+
+    // Update navigation buttons visibility for minimal mode
+    setTimeout(() => this.updateNavButtons(), 50);
   }
   
   toggleBookmark(promptId) {
@@ -1425,11 +1549,12 @@ class PromptTimeline {
   
   toggleBookmarkFilter() {
     this.showOnlyBookmarks = !this.showOnlyBookmarks;
-    
+    this.dotOffset = 0; // Reset dot navigation
+
     // Update button state
     const btn = this.sidebar.querySelector('.pts-filter-bookmarks');
     btn.classList.toggle('pts-filter-active', this.showOnlyBookmarks);
-    
+
     // Re-render with filter
     this.renderPromptList();
     
