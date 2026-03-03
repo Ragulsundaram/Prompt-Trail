@@ -891,34 +891,56 @@ class PromptTimeline {
       /* Minimal mode hover tooltip */
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item .pts-minimal-tooltip {
         position: absolute;
-        right: calc(100% + 12px);
+        right: calc(100% + 8px);
         top: 50%;
         transform: translateY(-50%);
         background: #161b22;
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 8px 12px;
-        width: 280px;
-        max-width: 280px;
+        width: 260px;
+        max-width: 260px;
         opacity: 0;
         visibility: hidden;
-        transition: opacity 0.2s, visibility 0.2s;
+        transition: opacity 0.15s, visibility 0.15s;
         pointer-events: none;
         box-shadow: -4px 0 16px rgba(0,0,0,0.3);
         z-index: 100;
       }
 
-      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover .pts-minimal-tooltip {
+      /* Hover bridge - invisible area between dot and tooltip */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item .pts-minimal-tooltip::after {
+        content: '';
+        position: absolute;
+        left: 100%;
+        top: 0;
+        width: 16px;
+        height: 100%;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover .pts-minimal-tooltip,
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item .pts-minimal-tooltip:hover {
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
       }
 
+      .pts-minimal-tooltip .pts-tooltip-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
       .pts-minimal-tooltip .pts-tooltip-num {
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 600;
         color: #7B77F0;
-        margin-bottom: 4px;
+      }
+
+      .pts-minimal-tooltip .pts-tooltip-actions {
+        display: flex;
+        gap: 2px;
       }
 
       .pts-minimal-tooltip .pts-tooltip-text {
@@ -931,18 +953,10 @@ class PromptTimeline {
         overflow: hidden;
       }
 
-      .pts-minimal-tooltip .pts-tooltip-actions {
-        display: flex;
-        gap: 4px;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid #21262d;
-      }
-
       .pts-minimal-tooltip .pts-btn {
-        width: 24px;
-        height: 24px;
-        padding: 4px;
+        width: 22px;
+        height: 22px;
+        padding: 3px;
       }
 
       .pts-minimal-tooltip .pts-btn svg {
@@ -1238,21 +1252,23 @@ class PromptTimeline {
         <div class="pts-prompt-text">${this.escapeHtml(prompt.text)}</div>
         ${isMinimal ? `
           <div class="pts-minimal-tooltip">
-            <div class="pts-tooltip-num">Prompt #${idx + 1}</div>
-            <div class="pts-tooltip-text">${this.escapeHtml(prompt.text)}</div>
-            <div class="pts-tooltip-actions">
-              <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-                </svg>
-              </button>
-              <button class="pts-btn pts-copy" data-action="copy" title="Copy to input">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-              </button>
+            <div class="pts-tooltip-header">
+              <div class="pts-tooltip-num">Prompt #${idx + 1}</div>
+              <div class="pts-tooltip-actions">
+                <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </button>
+                <button class="pts-btn pts-copy" data-action="copy" title="Copy to input">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
             </div>
+            <div class="pts-tooltip-text">${this.escapeHtml(prompt.text)}</div>
           </div>
         ` : ''}
       </div>
