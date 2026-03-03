@@ -10,6 +10,12 @@ class PromptTimeline {
     this.showOnlyBookmarks = false; // Filter toggle
     this.conversationId = this.getConversationId(); // Current chat ID
     
+    // Resize state
+    this.sidebarWidth = 340; // Default width
+    this.minWidth = 60; // Minimal mode threshold
+    this.maxWidth = 500;
+    this.isResizing = false;
+    
     this.init();
   }
 
@@ -21,6 +27,9 @@ class PromptTimeline {
     
     // Load saved bookmarks for this conversation
     this.loadBookmarks();
+    
+    // Load saved sidebar width
+    this.loadSidebarWidth();
     
     // Create the sidebar UI
     this.createSidebar();
@@ -90,6 +99,93 @@ class PromptTimeline {
     }
   }
   
+  loadSidebarWidth() {
+    try {
+      const saved = localStorage.getItem('prompttrail-sidebar-width');
+      if (saved) {
+        const width = parseInt(saved, 10);
+        if (width >= this.minWidth && width <= this.maxWidth) {
+          this.sidebarWidth = width;
+        }
+      }
+    } catch (e) {
+      console.warn('🛤️ PromptTrail: Could not load sidebar width', e);
+    }
+  }
+  
+  saveSidebarWidth() {
+    try {
+      localStorage.setItem('prompttrail-sidebar-width', this.sidebarWidth.toString());
+    } catch (e) {
+      console.warn('🛤️ PromptTrail: Could not save sidebar width', e);
+    }
+  }
+  
+  isMinimalMode() {
+    return this.sidebarWidth <= 100;
+  }
+  
+  updateSidebarWidth() {
+    if (!this.sidebar) return;
+    
+    const isMinimal = this.isMinimalMode();
+    
+    this.sidebar.style.width = `${this.sidebarWidth}px`;
+    this.sidebar.classList.toggle('pts-minimal', isMinimal);
+    
+    // Re-render prompt list for minimal mode
+    this.renderPromptList();
+  }
+  
+  setupResizeHandle() {
+    const handle = this.sidebar.querySelector('.pts-resize-handle');
+    if (!handle) return;
+    
+    let startX, startWidth;
+    
+    const onMouseMove = (e) => {
+      if (!this.isResizing) return;
+      
+      const deltaX = startX - e.clientX;
+      let newWidth = startWidth + deltaX;
+      
+      // Clamp to min/max
+      newWidth = Math.max(this.minWidth, Math.min(this.maxWidth, newWidth));
+      
+      this.sidebarWidth = newWidth;
+      this.updateSidebarWidth();
+    };
+    
+    const onMouseUp = () => {
+      if (!this.isResizing) return;
+      
+      this.isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      this.sidebar.classList.remove('pts-resizing');
+      
+      // Save the width
+      this.saveSidebarWidth();
+      
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      this.isResizing = true;
+      startX = e.clientX;
+      startWidth = this.sidebarWidth;
+      
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+      this.sidebar.classList.add('pts-resizing');
+      
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  }
+  
   getStableMessageId(element) {
     // Try to get ChatGPT's message ID from various attributes
     
@@ -152,7 +248,7 @@ class PromptTimeline {
             <path opacity="0.2" d="M176.623 364.287C174.046 363.871 171.372 363.651 168.63 363.651C165.889 363.651 163.216 363.871 160.64 364.286V305.661C163.229 306.032 165.9 306.233 168.632 306.233C171.364 306.233 174.034 306.032 176.623 305.661V364.287Z" fill="white"/>
             <defs><linearGradient id="grad1" x1="0" y1="0" x2="556.1" y2="556.1"><stop stop-color="#7B77F0"/><stop offset="1" stop-color="#3A35C8"/></linearGradient></defs>
           </svg>
-          Prompt Trail
+          <span class="pts-title-text">Prompt Trail</span>
           <span class="pts-count" id="pts-count">0</span>
         </div>
         <div class="pts-header-actions">
@@ -162,7 +258,17 @@ class PromptTimeline {
             </svg>
           </button>
           <button class="pts-rescan" title="Rescan prompts">↻</button>
-          <button class="pts-close" title="Collapse sidebar">»</button>
+          <button class="pts-collapse" title="Collapse to timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="13 17 18 12 13 7"/>
+              <polyline points="6 17 11 12 6 7"/>
+            </svg>
+          </button>
+          <button class="pts-minimize" title="Minimize to icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
       <div class="pts-content">
@@ -185,25 +291,39 @@ class PromptTimeline {
         <path opacity="0.2" d="M176.623 364.287C174.046 363.871 171.372 363.651 168.63 363.651C165.889 363.651 163.216 363.871 160.64 364.286V305.661C163.229 306.032 165.9 306.233 168.632 306.233C171.364 306.233 174.034 306.032 176.623 305.661V364.287Z" fill="white"/>
         <defs><linearGradient id="grad2" x1="0" y1="0" x2="556.1" y2="556.1"><stop stop-color="#7B77F0"/><stop offset="1" stop-color="#3A35C8"/></linearGradient></defs>
       </svg>
+      <div class="pts-resize-handle"></div>
+      <button class="pts-expand-btn" title="Expand sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
     `;
 
     // Add styles
     this.addStyles();
-    
+
     // Add to page
     document.body.appendChild(this.sidebar);
+    
+    // Apply initial width and mode
+    this.updateSidebarWidth();
 
     // Setup button handlers
-    this.sidebar.querySelector('.pts-close').addEventListener('click', (e) => {
+    this.sidebar.querySelector('.pts-collapse').addEventListener('click', (e) => {
       e.stopPropagation();
-      this.toggle();
+      this.collapseToTimeline();
     });
     
+    this.sidebar.querySelector('.pts-minimize').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.minimizeToIcon();
+    });
+
     this.sidebar.querySelector('.pts-rescan').addEventListener('click', (e) => {
       e.stopPropagation();
       this.rescan();
     });
-    
+
     this.sidebar.querySelector('.pts-filter-bookmarks').addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleBookmarkFilter();
@@ -222,6 +342,15 @@ class PromptTimeline {
         e.preventDefault();
         this.toggle();
       }
+    });
+    
+    // Setup resize handle
+    this.setupResizeHandle();
+    
+    // Expand button (for minimal mode)
+    this.sidebar.querySelector('.pts-expand-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.expandToFull();
     });
 
     console.log('🛤️ PromptTrail: Sidebar created');
@@ -341,7 +470,7 @@ class PromptTimeline {
         gap: 4px;
       }
       
-      .pts-close, .pts-rescan, .pts-filter-bookmarks {
+      .pts-collapse, .pts-minimize, .pts-rescan, .pts-filter-bookmarks {
         background: none;
         border: none;
         color: #8b949e;
@@ -355,12 +484,14 @@ class PromptTimeline {
         justify-content: center;
       }
 
-      .pts-filter-bookmarks svg {
+      .pts-filter-bookmarks svg,
+      .pts-collapse svg,
+      .pts-minimize svg {
         width: 14px;
         height: 14px;
       }
 
-      .pts-close:hover, .pts-rescan:hover, .pts-filter-bookmarks:hover {
+      .pts-collapse:hover, .pts-minimize:hover, .pts-rescan:hover, .pts-filter-bookmarks:hover {
         color: #c9d1d9;
         background: #21262d;
       }
@@ -613,22 +744,252 @@ class PromptTimeline {
         background: #f0b429;
         box-shadow: 0 0 8px rgba(240, 180, 41, 0.5);
       }
+
+      /* Resize handle */
+      .pts-resize-handle {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 6px;
+        height: 100%;
+        cursor: ew-resize;
+        background: transparent;
+        transition: background 0.2s;
+        z-index: 10;
+      }
+
+      .pts-resize-handle:hover,
+      #prompt-timeline-sidebar.pts-resizing .pts-resize-handle {
+        background: #7B77F0;
+      }
+
+      #prompt-timeline-sidebar.pts-resizing {
+        transition: none;
+      }
+
+      /* Minimal mode - floating dots only, no background */
+      #prompt-timeline-sidebar.pts-minimal {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        width: auto !important;
+        min-width: 24px;
+        overflow: visible;
+        top: 50%;
+        transform: translateY(-50%);
+        height: auto;
+        max-height: 80vh;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-header {
+        display: none;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-content {
+        padding: 12px 6px;
+        overflow: visible;
+        background: transparent;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-resize-handle {
+        display: none;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-timeline {
+        margin-left: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-empty {
+        display: none;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item {
+        width: 14px;
+        height: 14px;
+        min-height: 14px;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: none;
+        border-radius: 50%;
+        position: relative;
+        transition: transform 0.15s;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover {
+        transform: scale(1.3);
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::before {
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 10px;
+        height: 10px;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::after {
+        left: 50%;
+        top: 100%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 4px;
+        background: rgba(123, 119, 240, 0.5);
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:last-child::after {
+        display: none;
+      }
+
+      /* Hide collapsed icon in minimal mode */
+      #prompt-timeline-sidebar.pts-minimal .pts-collapsed-icon {
+        display: none;
+      }
+
+      /* Expand button - only visible in minimal mode */
+      .pts-expand-btn {
+        display: none;
+        position: absolute;
+        top: -30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 4px;
+        cursor: pointer;
+        color: #8b949e;
+        transition: all 0.2s;
+        z-index: 10;
+      }
+
+      .pts-expand-btn:hover {
+        background: #21262d;
+        color: #c9d1d9;
+        border-color: #7B77F0;
+      }
+
+      .pts-expand-btn svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-expand-btn {
+        display: block;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-header,
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-text {
+        display: none;
+      }
+
+      /* Minimal mode hover tooltip */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item .pts-minimal-tooltip {
+        position: absolute;
+        right: calc(100% + 12px);
+        top: 50%;
+        transform: translateY(-50%);
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 8px 12px;
+        width: 280px;
+        max-width: 280px;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+        pointer-events: none;
+        box-shadow: -4px 0 16px rgba(0,0,0,0.3);
+        z-index: 100;
+      }
+
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover .pts-minimal-tooltip {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+
+      .pts-minimal-tooltip .pts-tooltip-num {
+        font-size: 10px;
+        font-weight: 600;
+        color: #7B77F0;
+        margin-bottom: 4px;
+      }
+
+      .pts-minimal-tooltip .pts-tooltip-text {
+        font-size: 12px;
+        color: #c9d1d9;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .pts-minimal-tooltip .pts-tooltip-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #21262d;
+      }
+
+      .pts-minimal-tooltip .pts-btn {
+        width: 24px;
+        height: 24px;
+        padding: 4px;
+      }
+
+      .pts-minimal-tooltip .pts-btn svg {
+        width: 14px;
+        height: 14px;
+      }
     `;
 
     document.head.appendChild(styles);
   }
 
+  collapseToTimeline() {
+    // Switch to minimal timeline view
+    this.sidebar.classList.remove('pts-collapsed');
+    this.sidebarWidth = this.minWidth;
+    this.updateSidebarWidth();
+    this.saveSidebarWidth();
+  }
+  
+  minimizeToIcon() {
+    // Minimize to small square icon
+    this.sidebar.classList.remove('pts-minimal');
+    this.sidebar.classList.add('pts-collapsed');
+    this.sidebar.style.width = ''; // Clear inline width so CSS class takes effect
+    this.isVisible = false;
+  }
+  
+  expandToFull() {
+    // Expand to full sidebar
+    this.sidebar.classList.remove('pts-collapsed');
+    this.sidebar.classList.remove('pts-minimal');
+    this.sidebarWidth = 340;
+    this.updateSidebarWidth();
+    this.saveSidebarWidth();
+    this.isVisible = true;
+  }
+  
   toggle() {
+    // Legacy toggle - now used for keyboard shortcut and collapsed state click
     const isCollapsed = this.sidebar.classList.contains('pts-collapsed');
     
     if (isCollapsed) {
-      // Expand
-      this.sidebar.classList.remove('pts-collapsed');
-      this.isVisible = true;
+      this.expandToFull();
+    } else if (this.isMinimalMode()) {
+      this.expandToFull();
     } else {
-      // Collapse
-      this.sidebar.classList.add('pts-collapsed');
-      this.isVisible = false;
+      this.minimizeToIcon();
     }
   }
 
@@ -854,6 +1215,8 @@ class PromptTimeline {
       return;
     }
 
+    const isMinimal = this.isMinimalMode();
+    
     container.innerHTML = displayPrompts.map((prompt, idx) => `
       <div class="pts-prompt-item ${this.bookmarks.has(prompt.id) ? 'pts-is-bookmarked' : ''}" data-prompt-id="${prompt.id}">
         <div class="pts-prompt-header">
@@ -873,6 +1236,25 @@ class PromptTimeline {
           </div>
         </div>
         <div class="pts-prompt-text">${this.escapeHtml(prompt.text)}</div>
+        ${isMinimal ? `
+          <div class="pts-minimal-tooltip">
+            <div class="pts-tooltip-num">Prompt #${idx + 1}</div>
+            <div class="pts-tooltip-text">${this.escapeHtml(prompt.text)}</div>
+            <div class="pts-tooltip-actions">
+              <button class="pts-btn pts-bookmark ${this.bookmarks.has(prompt.id) ? 'pts-bookmarked' : ''}" data-action="bookmark" title="Bookmark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+              </button>
+              <button class="pts-btn pts-copy" data-action="copy" title="Copy to input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `).join('');
 
@@ -887,16 +1269,20 @@ class PromptTimeline {
         }
       });
       
-      // Bookmark button
-      item.querySelector('.pts-bookmark').addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.toggleBookmark(promptId);
+      // Bookmark buttons (may be multiple in minimal mode)
+      item.querySelectorAll('.pts-bookmark').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleBookmark(promptId);
+        });
       });
       
-      // Copy button
-      item.querySelector('.pts-copy').addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.copyToInput(promptId);
+      // Copy buttons (may be multiple in minimal mode)
+      item.querySelectorAll('.pts-copy').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.copyToInput(promptId);
+        });
       });
     });
   }
