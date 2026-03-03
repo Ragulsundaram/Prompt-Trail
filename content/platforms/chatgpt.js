@@ -1453,16 +1453,21 @@ class PromptTimeline {
       this.bookmarks.add(promptId);
       console.log('🛤️ PromptTrail: Added bookmark', promptId);
     }
-    
+
     // Save to localStorage
     this.saveBookmarks();
-    
-    // Update UI
+
+    // Update UI - update ALL bookmark buttons for this item (both in header and tooltip)
     const item = document.querySelector(`[data-prompt-id="${promptId}"]`);
     if (item) {
-      const btn = item.querySelector('.pts-bookmark');
       const isBookmarked = this.bookmarks.has(promptId);
-      btn.classList.toggle('pts-bookmarked', isBookmarked);
+      
+      // Update all bookmark buttons (there may be multiple in minimal mode)
+      item.querySelectorAll('.pts-bookmark').forEach(btn => {
+        btn.classList.toggle('pts-bookmarked', isBookmarked);
+      });
+      
+      // Update the item's bookmarked state (for the golden dot)
       item.classList.toggle('pts-is-bookmarked', isBookmarked);
     }
   }
