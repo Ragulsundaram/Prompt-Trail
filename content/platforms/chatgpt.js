@@ -424,7 +424,8 @@ class PromptTimeline {
       }
 
       #prompt-timeline-sidebar.pts-collapsed .pts-header,
-      #prompt-timeline-sidebar.pts-collapsed .pts-content {
+      #prompt-timeline-sidebar.pts-collapsed .pts-content,
+      #prompt-timeline-sidebar.pts-collapsed .pts-resize-handle {
         display: none;
       }
 
