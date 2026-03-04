@@ -407,8 +407,9 @@ class PromptTimeline {
         display: flex;
         flex-direction: column;
         box-shadow: -4px 0 24px rgba(0,0,0,0.5);
-        transition: all 0.3s ease;
+        transition: width 0.3s ease, height 0.3s ease, margin-top 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease;
         border-radius: 0;
+        margin-top: 0;
       }
 
       /* Collapsed state - small square button */
@@ -416,8 +417,7 @@ class PromptTimeline {
         width: 48px;
         height: 48px;
         min-width: 48px;
-        top: 50%;
-        transform: translateY(-50%);
+        margin-top: calc(50vh - 24px);
         border-radius: 12px 0 0 12px;
         cursor: pointer;
         overflow: hidden;
@@ -807,10 +807,9 @@ class PromptTimeline {
         width: auto !important;
         min-width: 24px;
         overflow: visible;
-        top: 50%;
-        transform: translateY(-50%);
         height: auto;
         max-height: 80vh;
+        margin-top: 15vh;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-header {
