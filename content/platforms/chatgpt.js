@@ -901,6 +901,10 @@ class PromptTimeline {
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover {
         transform: scale(1.3);
       }
+      
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover::before {
+        background: #7B77F0;
+      }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::before {
         left: 50%;
@@ -908,6 +912,7 @@ class PromptTimeline {
         transform: translate(-50%, -50%);
         width: 10px;
         height: 10px;
+        background: transparent;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::after {
