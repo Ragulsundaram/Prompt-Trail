@@ -937,15 +937,22 @@ class PromptTimeline {
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked {
         border-color: #f0b429;
         background: #f0b429;
+        z-index: 2;
       }
-      
+
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked .pts-dot-num {
-        color: #1a1a1a;
+        color: #ffffff;
       }
-      
+
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked:hover {
         background: #ffc107;
         border-color: #ffc107;
+      }
+      
+      /* Line from bookmarked circle - starts after border, shorter height */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked::after {
+        top: calc(100% + 2px);
+        height: 4px;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::after {
@@ -955,6 +962,7 @@ class PromptTimeline {
         width: 2px;
         height: 8px;
         background: #7B77F0;
+        z-index: 1;
       }
       
       /* Hide line on last item */
