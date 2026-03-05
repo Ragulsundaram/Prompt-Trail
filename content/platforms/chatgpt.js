@@ -837,7 +837,7 @@ class PromptTimeline {
         background: #161b22;
         border: 1px solid #30363d;
         border-radius: 50%;
-        color: #8b949e;
+        color: #ffffff;
         cursor: pointer;
         transition: all 0.15s;
         align-items: center;
@@ -853,8 +853,8 @@ class PromptTimeline {
 
       #prompt-timeline-sidebar.pts-minimal .pts-nav-up:hover:not(.pts-nav-disabled),
       #prompt-timeline-sidebar.pts-minimal .pts-nav-down:hover:not(.pts-nav-disabled) {
-        background: #21262d;
-        color: #c9d1d9;
+        background: #7B77F0;
+        color: #ffffff;
         border-color: #7B77F0;
       }
 
