@@ -1090,12 +1090,13 @@ class PromptTimeline {
   }
   
   scrollDots(direction) {
-    const displayPrompts = this.showOnlyBookmarks 
+    const displayPrompts = this.showOnlyBookmarks
       ? this.prompts.filter(p => this.bookmarks.has(p.id))
       : this.prompts;
-    
-    const step = 5; // How many dots to shift at once
-    
+
+    // Move a full page at a time (same as visibleDotCount)
+    const step = this.visibleDotCount;
+
     if (direction === 'up') {
       this.dotOffset = Math.max(0, this.dotOffset - step);
     } else {
