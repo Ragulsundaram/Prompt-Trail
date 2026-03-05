@@ -911,9 +911,19 @@ class PromptTimeline {
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover {
-        transform: scale(1.15);
+        width: 24px;
+        height: 24px;
+        min-height: 24px;
+        margin: -2px;
         background: #7B77F0;
         border-color: #9590f5;
+        z-index: 2;
+      }
+      
+      /* Line from hovered circle - starts after border, shorter height */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover::after {
+        top: calc(100% + 2px);
+        height: 4px;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::before {
