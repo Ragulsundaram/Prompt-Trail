@@ -925,7 +925,7 @@ class PromptTimeline {
         display: block;
         font-size: 9px;
         font-weight: 600;
-        color: #c9d1d9;
+        color: #7B77F0;
         line-height: 1;
       }
       
@@ -953,8 +953,13 @@ class PromptTimeline {
         top: 100%;
         transform: translateX(-50%);
         width: 2px;
-        height: 4px;
-        background: rgba(123, 119, 240, 0.5);
+        height: 8px;
+        background: #7B77F0;
+      }
+      
+      /* Hide line on last item */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:last-child::after {
+        display: none;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:last-child::after {
