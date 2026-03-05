@@ -637,6 +637,11 @@ class PromptTimeline {
         color: #8b949e;
         margin-bottom: 8px;
       }
+      
+      /* Hide dot number in non-minimal mode */
+      .pts-dot-num {
+        display: none;
+      }
 
       .pts-prompt-num span {
         background: #7B77F0;
@@ -861,15 +866,16 @@ class PromptTimeline {
 
 
       #prompt-timeline-sidebar.pts-minimal .pts-content {
-        padding: 12px 6px;
-        max-height: 65vh;
+        padding: 8px 6px;
+        max-height: 70vh;
         overflow: visible;
         background: transparent;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: flex-start;
       }
-
+      
       #prompt-timeline-sidebar.pts-minimal .pts-resize-handle {
         display: none;
       }
@@ -881,7 +887,7 @@ class PromptTimeline {
         align-items: center;
         gap: 4px;
         overflow: visible;
-        max-height: 55vh;
+        flex: 1;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-empty {
@@ -889,33 +895,57 @@ class PromptTimeline {
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item {
-        width: 14px;
-        height: 14px;
-        min-height: 14px;
+        width: 20px;
+        height: 20px;
+        min-height: 20px;
         margin: 0;
         padding: 0;
         background: transparent;
-        border: none;
+        border: 2px solid #7B77F0;
         border-radius: 50%;
         position: relative;
-        transition: transform 0.15s;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover {
-        transform: scale(1.3);
-      }
-      
-      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover::before {
+        transform: scale(1.15);
         background: #7B77F0;
+        border-color: #9590f5;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::before {
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: 10px;
-        height: 10px;
-        background: transparent;
+        display: none;
+      }
+      
+      /* Number inside the dot */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item .pts-dot-num {
+        display: block;
+        font-size: 9px;
+        font-weight: 600;
+        color: #c9d1d9;
+        line-height: 1;
+      }
+      
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item:hover .pts-dot-num {
+        color: #fff;
+      }
+      
+      /* Bookmarked items in minimal mode */
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked {
+        border-color: #f0b429;
+        background: #f0b429;
+      }
+      
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked .pts-dot-num {
+        color: #1a1a1a;
+      }
+      
+      #prompt-timeline-sidebar.pts-minimal .pts-prompt-item.pts-is-bookmarked:hover {
+        background: #ffc107;
+        border-color: #ffc107;
       }
 
       #prompt-timeline-sidebar.pts-minimal .pts-prompt-item::after {
@@ -1381,6 +1411,7 @@ class PromptTimeline {
       const actualIdx = startIdx + idx; // Original index for display
       return `
       <div class="pts-prompt-item ${this.bookmarks.has(prompt.id) ? 'pts-is-bookmarked' : ''}" data-prompt-id="${prompt.id}">
+        <span class="pts-dot-num">${actualIdx + 1}</span>
         <div class="pts-prompt-header">
           <div class="pts-prompt-num"><span>${actualIdx + 1}</span></div>
           <div class="pts-prompt-actions">
