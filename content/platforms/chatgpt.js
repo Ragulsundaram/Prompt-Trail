@@ -824,7 +824,7 @@ class PromptTimeline {
 
       #prompt-timeline-sidebar.pts-minimal .pts-nav-up,
       #prompt-timeline-sidebar.pts-minimal .pts-nav-down {
-        display: none;
+        display: flex;
         width: 20px;
         height: 20px;
         padding: 2px;
@@ -838,9 +838,16 @@ class PromptTimeline {
         align-items: center;
         justify-content: center;
       }
+      
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up.pts-nav-disabled,
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down.pts-nav-disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
 
-      #prompt-timeline-sidebar.pts-minimal .pts-nav-up:hover,
-      #prompt-timeline-sidebar.pts-minimal .pts-nav-down:hover {
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-up:hover:not(.pts-nav-disabled),
+      #prompt-timeline-sidebar.pts-minimal .pts-nav-down:hover:not(.pts-nav-disabled) {
         background: #21262d;
         color: #c9d1d9;
         border-color: #7B77F0;
@@ -852,10 +859,6 @@ class PromptTimeline {
         height: 14px;
       }
 
-      #prompt-timeline-sidebar.pts-minimal .pts-nav-up.pts-nav-visible,
-      #prompt-timeline-sidebar.pts-minimal .pts-nav-down.pts-nav-visible {
-        display: flex;
-      }
 
       #prompt-timeline-sidebar.pts-minimal .pts-content {
         padding: 12px 6px;
@@ -1121,11 +1124,11 @@ class PromptTimeline {
 
     // Check if we can go up (there are dots above)
     const canGoUp = this.dotOffset > 0;
-    upBtn.classList.toggle('pts-nav-visible', canGoUp);
+    upBtn.classList.toggle('pts-nav-disabled', !canGoUp);
 
     // Check if we can go down (there are dots below)
     const canGoDown = this.dotOffset + this.visibleDotCount < displayPrompts.length;
-    downBtn.classList.toggle('pts-nav-visible', canGoDown);
+    downBtn.classList.toggle('pts-nav-disabled', !canGoDown);
   }
   
   toggle() {
