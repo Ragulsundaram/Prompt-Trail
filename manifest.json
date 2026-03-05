@@ -2,15 +2,17 @@
   "manifest_version": 3,
   "name": "Prompt Trail",
   "version": "1.0.0",
-  "description": "Track your prompt timeline on ChatGPT - click to scroll to any prompt",
+  "description": "Track your prompt timeline on ChatGPT and Claude - click to scroll to any prompt",
   
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "storage"
   ],
   
   "host_permissions": [
     "https://chat.openai.com/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://claude.ai/*"
   ],
   
   "background": {
@@ -21,6 +23,11 @@
     {
       "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*"],
       "js": ["content/platforms/chatgpt.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content/platforms/claude.js"],
       "run_at": "document_idle"
     }
   ],
